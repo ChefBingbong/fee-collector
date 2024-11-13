@@ -3,7 +3,7 @@ import * as z from "zod";
 import { extractError } from "../utils/extractError";
 
 const env = process.env.NODE_ENV || "development";
-const path = env === "production" ? ".env" : `.env.${env}`;
+const path = env !== "production" ? ".env" : `.env.${env}`;
 config({ path });
 config({ path: ".env" });
 
