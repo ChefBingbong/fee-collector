@@ -98,14 +98,25 @@
 
 // const collector = new FeesCollector({ jobId: "fc", schedule: "*/12 * * * * *", debug: false });
 // collector.executeCronTask({});
+import { getConnection } from "./db/mongoClient";
+import { ModelType } from "./db/types";
 import { RedisClient } from "./redis/redis";
 
 export let redisClient: RedisClient;
 
 export const commonInit = async (): Promise<void> => {
-  if (!redisClient) {
-    redisClient = await RedisClient.initialize();
-  }
+  // if (!redisClient) {
+  //   redisClient = await RedisClient.initialize();
+  // }
+  const connection = await getConnection();
+  const model = await connection.model(ModelType.priceHistoryInfo);
+  const msg = await model.create({
+    tokenAddress: "0x",
+    tokenSymbol: "x",
+    priceUsd: 1,
+    timestamp: Date.now(),
+  });
+  await msg.save();
   // initialise active subscribers on api start
   process
     .on("SIGINT", (reason) => {
