@@ -1,49 +1,24 @@
-import {
-  http,
-  Address,
-  Chain,
-  Client,
-  PublicClient,
-  WalletClient,
-  createPublicClient,
-  createWalletClient,
-  fallback,
-} from "viem";
+import { http, Address, Chain, PublicClient, WalletClient, createPublicClient, createWalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import appConfig from "../config/config";
-import { CHAINS, ChainId, PUBLIC_NODES } from "./chains";
+import { CHAINS, ChainId } from "./chains";
 
 export type viemAddress = `0x${string}`;
 
 export const PROTOCOL_SIGNER = privateKeyToAccount(appConfig.protocolSigner as Address);
 
-const createClients = <TClient extends Client>(chains: Chain[]) => {
+const createClients = <TClient extends PublicClient | WalletClient>(chains: Chain[]) => {
   return (type: "Wallet" | "Public"): Record<ChainId, TClient> => {
     return chains.reduce(
       (prev, cur) => {
         const clientConfig = {
           chain: cur,
-          transport: fallback(
-            (PUBLIC_NODES[cur.id] as string[]).map((url) =>
-              http(url, {
-                timeout: 15_000,
-              }),
-            ),
-            {
-              rank: false,
-            },
-          ),
-          batch: {
-            multicall: {
-              batchSize: 154 * 200,
-              wait: 16,
-            },
-          },
+          transport: http(),
         };
         const client =
           type === "Wallet"
-            ? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER })
-            : createPublicClient(clientConfig);
+            ? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER, cacheTime: 4000 })
+            : createPublicClient({ ...clientConfig, cacheTime: 4000 });
         return {
           ...prev,
           [cur.id]: client,
@@ -54,13 +29,13 @@ const createClients = <TClient extends Client>(chains: Chain[]) => {
   };
 };
 
-const publicClients: Record<ChainId, PublicClient> = createClients(CHAINS)("Public");
-const walletClients: Record<ChainId, WalletClient> = createClients(CHAINS)("Wallet");
+const publicClients: Record<ChainId, PublicClient> = createClients<PublicClient>(CHAINS)("Public");
+const walletClients: Record<ChainId, WalletClient> = createClients<WalletClient>(CHAINS)("Wallet");
 
-export const getPublicClient = ({ chainId }: { chainId: ChainId }): PublicClient => {
+export const getPublicClient = ({ chainId }: { chainId: ChainId }) => {
   return publicClients[chainId];
 };
 
-export const getWalletClient = ({ chainId }: { chainId: ChainId }): WalletClient => {
+export const getWalletClient = ({ chainId }: { chainId: ChainId }) => {
   return walletClients[chainId];
 };

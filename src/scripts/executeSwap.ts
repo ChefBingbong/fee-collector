@@ -81,22 +81,22 @@ const swap = async (swapParams: SwapParams) => {
   publicApiUrl.searchParams.set("slippage", swapParams.slippage.toString());
 
   const res = await fetch(publicApiUrl, { headers });
-  const { tx } = await res.json();
+  const tx = await res.json();
 
   console.log("Submitting swap...");
   // @ts-ignore
-  const hash = await client.sendTransaction({
-    account: tx.from as Address,
-    to: tx.to as Address,
-    data: tx.data as `0x${string}`,
-    value: tx.value ? BigInt(tx.value) : 0n,
-  });
-  console.log("hash", hash);
+  // const hash = await client.sendTransaction({
+  //   account: tx.from as Address,
+  //   to: tx.to as Address,
+  //   data: tx.data as `0x${string}`,
+  //   value: tx.value ? BigInt(tx.value) : 0n,
+  // });
+  // console.log("hash", hash);
 
-  const rcpt = await client.waitForTransactionReceipt({
-    hash,
-  });
-  console.log("Swap complete", rcpt.status);
+  // const rcpt = await client.waitForTransactionReceipt({
+  //   hash,
+  // });
+  console.log("Swap complete", tx);
 };
 
 async function main() {
