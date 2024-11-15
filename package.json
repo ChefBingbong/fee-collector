@@ -7,6 +7,7 @@
 		"clean": "rm -rf build",
 		"start": "tsc && node ./build/index.js",
 		"start:dev": "npx ts-node src/index.ts",
+		"start:dev2": "npx ts-node src/index2.ts",
 		"start:d": "npx ts-node src/feeCollector.ts",
 		"format:check": "biome format .",
 		"format:write": "biome format . --write",
@@ -19,6 +20,7 @@
 	"author": "Chef Bingbong",
 	"license": "ISC",
 	"dependencies": {
+		"abitype": "^1.0.6",
 		"axios": "^1.7.7",
 		"bignumber.js": "^9.1.2",
 		"chalk": "4.1.2",

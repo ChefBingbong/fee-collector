@@ -1,11 +1,11 @@
 import { http, Address, Chain, PublicClient, WalletClient, createPublicClient, createWalletClient } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import appConfig from "../config/config";
 import { CHAINS, ChainId } from "./chains";
 
 export type viemAddress = `0x${string}`;
 
-export const PROTOCOL_SIGNER = privateKeyToAccount(appConfig.protocolSigner as Address);
+// export const PROTOCOL_SIGNER = privateKeyToAccount(appConfig.protocolSigner as Address);
+export const PROTOCOL_SIGNER = appConfig.protocolSigner;
 
 const createClients = <TClient extends PublicClient | WalletClient>(chains: Chain[]) => {
 	return (type: "Wallet" | "Public"): Record<ChainId, TClient> => {
@@ -17,7 +17,7 @@ const createClients = <TClient extends PublicClient | WalletClient>(chains: Chai
 				};
 				const client =
 					type === "Wallet"
-						? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER, cacheTime: 4000 })
+						? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER as Address, cacheTime: 4000 })
 						: createPublicClient({ ...clientConfig, cacheTime: 4000 });
 				return {
 					...prev,

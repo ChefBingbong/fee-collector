@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      abitype:
+        specifier: ^1.0.6
+        version: 1.0.6(typescript@5.6.3)(zod@3.23.8)
       axios:
         specifier: ^1.7.7
         version: 1.7.7

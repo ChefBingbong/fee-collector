@@ -56,6 +56,16 @@ export class PriceHistoryRepository extends AppLogger {
 		}
 	};
 
+	public getLatest = async (assetAddress: Address): Promise<IPriceData | null> => {
+		try {
+			const model = this.getModel(assetAddress);
+			return model.findOne().sort({ timestamp: -1 }).limit(1).exec();
+		} catch (error) {
+			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			throw new Error(`Error getting vault history for ${assetAddress}`);
+		}
+	};
+
 	public getByRange = async (assetAddress: Address, startTimestamp: number, endTimestamp: number): Promise<IPriceData[]> => {
 		try {
 			const model = this.getModel(assetAddress);

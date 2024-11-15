@@ -1,6 +1,8 @@
 import { Address } from "viem";
 import appConfig from "../../config/config";
 import { AppLogger } from "../../logging/logger";
+import { ChainId } from "../../provider/chains";
+import { getPublicClient, getWalletClient } from "../../provider/client";
 import { GET } from "../../utils/network";
 import { BaseScheduler } from "../BaseScheduler";
 
@@ -27,7 +29,6 @@ export abstract class BaseAssetManager extends AppLogger {
 	public job: BaseScheduler;
 	public schedule: string;
 	protected debug: boolean;
-	public whitelistedTokens: Map<Address, TokenInfo>;
 
 	abstract executeCronTask(): Promise<void>;
 
@@ -39,17 +40,27 @@ export abstract class BaseAssetManager extends AppLogger {
 		this.job = new BaseScheduler({ jobId, schedule, process });
 	}
 
-	public getTokenPrices = async (): Promise<PriceResponse[]> => {
+	protected getTokenPrices = async (): Promise<PriceResponse[]> => {
 		const result = await GET<PriceResponse[], any>(`${this.api}/v1/prices?currency=USD`, config);
 		const OogaPrice = result.find((r) => r.address.toLowerCase() === OogaAddress.toLowerCase());
 		return [...result.slice(0, 5), OogaPrice];
 	};
 
-	public getWhitelistedTokens = async (): Promise<Map<Address, TokenInfo>> => {
+	protected getWhitelistedTokens = async (): Promise<Map<Address, TokenInfo>> => {
 		const result = await GET<TokenInfo[], any>(`${this.api}/v1/tokens`, config);
 
 		return result.reduce((map: Map<Address, TokenInfo>, token: TokenInfo) => {
 			return map.set(token.address.toLowerCase() as Address, token);
 		}, new Map<Address, TokenInfo>());
+	};
+
+	protected getClient = () => {
+		const client = getPublicClient({ chainId: ChainId.BERA_TESTNET });
+		return client;
+	};
+
+	protected getWalletClient = () => {
+		const client = getWalletClient({ chainId: ChainId.BERA_TESTNET });
+		return client;
 	};
 }
