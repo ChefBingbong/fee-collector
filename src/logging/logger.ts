@@ -10,7 +10,7 @@ export class AppLogger {
 	}
 
 	private initLogger(label: string) {
-		if (!this.logger) return;
+		if (this.logger) return;
 		if (label.length > 30) throw new Error("Too long label");
 		const customFormat = format.combine(format.timestamp(), this.customPrintf());
 

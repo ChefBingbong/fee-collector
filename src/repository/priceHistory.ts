@@ -1,73 +1,87 @@
 import { Connection, Model } from "mongoose";
+import { Address } from "viem";
 import { IPriceData, getPriceHistorySchema } from "../db/schemas/token-price.schema";
 import { ModelType } from "../db/types";
 import { AppLogger } from "../logging/logger";
 import { chunks } from "../utils/dbUtils";
 
 export class PriceHistoryRepository extends AppLogger {
-	public readonly collectionId: string;
 	private readonly connection: Connection;
-	private readonly model: Model<IPriceData>;
 
-	constructor(id: string, connection: Connection) {
-		super(`${id}-logger`);
-		this.collectionId = id;
+	constructor(connection: Connection) {
+		super(`price-actions-logger`);
 		this.connection = connection;
-		this.model = connection.model<IPriceData>(ModelType.priceHistoryInfo, getPriceHistorySchema());
 	}
 
-	public addMany = async (priceHistoryData: IPriceData[]) => {
+	public addMany = async (assetAddress: Address, priceHistoryData: IPriceData[]) => {
 		if (priceHistoryData.length === 0) {
 			this.logger.error("[VaultHistoryRepository] [add] No vault history to add");
 			throw new Error("No vault history to add");
 		}
 
+		const model = this.getModel(assetAddress);
 		for (const chunk of chunks(priceHistoryData, 100)) {
 			try {
-				const result = await this.model.insertMany<IPriceData>(chunk);
+				const result = await model.insertMany<IPriceData>(chunk);
 				this.logger.info(`[PriceInfoRepository] [add] Inserted ${result?.length} vault history`);
 			} catch (error) {
-				this.logger.error(`[PriceInfoRepository] [add] Error inserting price history for : [${this.collectionId}] -> ${error}`);
+				this.logger.error(`[PriceInfoRepository] [add] Error inserting price history for : [${assetAddress}] -> ${error}`);
 			}
 		}
 	};
 
-	public addOne = async (priceHistoryData: IPriceData) => {
+	public addOne = async (assetAddress: Address, priceHistoryData: IPriceData) => {
 		if (!priceHistoryData) {
 			this.logger.error("[VaultHistoryRepository] [addOne] No vault history to add");
 			throw new Error("No vault history to add");
 		}
 
 		try {
-			await this.model.create<IPriceData>(priceHistoryData);
-			this.logger.info(`[PriceInfoRepository] [addOne] Inserted vault history`);
+			const model = this.getModel(assetAddress);
+			await model.create<IPriceData>(priceHistoryData);
+			this.logger.info(`[PriceInfoRepository] [addOne] Inserted price history ${assetAddress}`);
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [addOne] Error inserting vault history for : [${this.collectionId}] -> ${error}`);
-			throw new Error(`Error inserting vault history for ${this.collectionId}`);
+			this.logger.error(`[PriceInfoRepository] [addOne] Error inserting price history for : [${assetAddress}] -> ${error}`);
+			throw new Error(`Error inserting vault history for ${assetAddress}`);
 		}
 	};
 
-	public get = async (timestamp: number): Promise<IPriceData | null> => {
+	public get = async (assetAddress: Address, timestamp: number): Promise<IPriceData | null> => {
 		try {
-			return await this.model.findOne({ timestamp: timestamp });
+			const model = this.getModel(assetAddress);
+			return await model.findOne({ timestamp: timestamp });
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [get] Error getting vault history for : [${this.collectionId}] - [${error}]`);
-			throw new Error(`Error getting vault history for ${this.collectionId}`);
+			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			throw new Error(`Error getting vault history for ${assetAddress}`);
 		}
 	};
 
-	public getByRange = async (startTimestamp: number, endTimestamp: number): Promise<IPriceData[]> => {
+	public getByRange = async (assetAddress: Address, startTimestamp: number, endTimestamp: number): Promise<IPriceData[]> => {
 		try {
-			return await this.model.find({
+			const model = this.getModel(assetAddress);
+
+			return await model.find({
 				timestamp: {
 					$gte: startTimestamp,
 					$lte: endTimestamp,
 				},
 			});
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [get] Error getting vault history for : [${this.collectionId}] - [${error}]`);
-			throw new Error(`Error getting vault history for ${this.collectionId}`);
+			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			throw new Error(`Error getting vault history for ${assetAddress}`);
 		}
+	};
+
+	private getModel = (assetAddress: string): Model<IPriceData> => {
+		const type = this.getVaultHistoryModelName(assetAddress);
+		if (this.connection.modelNames().includes(type)) {
+			return this.connection.model(type);
+		}
+		return this.connection.model(type, getPriceHistorySchema(type));
+	};
+
+	private getVaultHistoryModelName = (assetAddress: string): string => {
+		return `${ModelType.priceHistoryInfo}_${assetAddress}`;
 	};
 
 	public getConnection = () => this.connection;

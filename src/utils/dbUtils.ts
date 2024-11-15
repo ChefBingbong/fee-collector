@@ -44,3 +44,12 @@ export const getFlooredTimeStamp = (timestamp: number, nthDayFromToday: number):
 	date.setHours(0, 0, 0, 0);
 	return date.getTime() / 1000;
 };
+
+export enum TIMESTAMPS {
+	TwelveHr = 12 * 60 * 60 * 1000, // 12 hours in ms
+	TwentyFourHr = 24 * 60 * 60 * 1000, // 24 hours in ms
+}
+
+export function getTimestamp(type: TIMESTAMPS, currentDateMs: number): number {
+	return currentDateMs - type;
+}

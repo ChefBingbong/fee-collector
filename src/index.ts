@@ -98,43 +98,47 @@
 
 // const collector = new FeesCollector({ jobId: "fc", schedule: "*/12 * * * * *", debug: false });
 // collector.executeCronTask({});
+import { Connection } from "mongoose";
 import { getConnection } from "./db/mongoClient";
-import { ModelType } from "./db/types";
+import { PriceUpdater } from "./priceUpdater";
 import { RedisClient } from "./redis/redis";
 
 export let redisClient: RedisClient;
+export let connection: Connection;
 
 export const commonInit = async (): Promise<void> => {
-  // if (!redisClient) {
-  //   redisClient = await RedisClient.initialize();
-  // }
-  const connection = await getConnection();
-  const model = await connection.model(ModelType.priceHistoryInfo);
-  const msg = await model.create({
-    tokenAddress: "0x",
-    tokenSymbol: "x",
-    priceUsd: 1,
-    timestamp: Date.now(),
-  });
-  await msg.save();
-  // initialise active subscribers on api start
-  process
-    .on("SIGINT", (reason) => {
-      console.error(`SIGINT. ${reason}`);
-      process.exit();
-    })
-    .on("SIGTERM", (reason) => {
-      console.error(`SIGTERM. ${reason}`);
-      process.exit();
-    })
-    .on("unhandledRejection", (reason) => {
-      console.error(`Unhandled Rejection at Promise. Reason: ${reason}`);
-      process.exit(-1);
-    })
-    .on("uncaughtException", (reason) => {
-      console.error(`Uncaught Exception Rejection at Promise. Reason: ${reason}`);
-      process.exit(-2);
-    });
+	if (!connection) {
+		connection = await getConnection();
+	}
+	const collector = new PriceUpdater({ jobId: "fc", schedule: "*/2 * * * *", debug: false });
+	await collector.executeCronTask();
+	// const connection = await getConnection();
+	// const model = await connection.model(ModelType.priceHistoryInfo);
+	// const msg = await model.create({
+	//   tokenAddress: "0x",
+	//   tokenSymbol: "x",
+	//   priceUsd: 1,
+	//   timestamp: Date.now(),
+	// });
+	// await msg.save();
+	// initialise active subscribers on api start
+	process
+		.on("SIGINT", (reason) => {
+			console.error(`SIGINT. ${reason}`);
+			process.exit();
+		})
+		.on("SIGTERM", (reason) => {
+			console.error(`SIGTERM. ${reason}`);
+			process.exit();
+		})
+		.on("unhandledRejection", (reason) => {
+			console.error(`Unhandled Rejection at Promise. Reason: ${reason}`);
+			process.exit(-1);
+		})
+		.on("uncaughtException", (reason) => {
+			console.error(`Uncaught Exception Rejection at Promise. Reason: ${reason}`);
+			process.exit(-2);
+		});
 };
 
 commonInit();
