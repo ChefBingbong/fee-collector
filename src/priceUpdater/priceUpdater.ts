@@ -1,12 +1,12 @@
 import { Address } from "viem";
-import { connection } from ".";
-import { BaseAssetManager, PriceResponse, TokenInfo } from "./cron/BasePriceService/BasePriceService";
-import { BaseScheduler } from "./cron/BaseScheduler";
-import { JobExecutor } from "./cron/cronLock";
-import { IPriceData } from "./db/schemas/token-price.schema";
-import { PriceHistoryRepository } from "./repository/priceHistory";
-import { TIMESTAMPS, getTimestamp } from "./utils/dbUtils";
-import { extractError } from "./utils/extractError";
+import { connection } from "..";
+import { BaseAssetManager, PriceResponse, TokenInfo } from "../cron/BasePriceService/BasePriceService";
+import { BaseScheduler } from "../cron/BaseScheduler";
+import { JobExecutor } from "../cron/cronLock";
+import { IPriceData } from "../db/schemas/token-price.schema";
+import { PriceHistoryRepository } from "../repository/priceHistory";
+import { TIMESTAMPS, getTimestamp } from "../utils/dbUtils";
+import { extractError } from "../utils/extractError";
 
 export class PriceUpdater extends BaseAssetManager {
 	public job: BaseScheduler;

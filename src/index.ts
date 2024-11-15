@@ -100,7 +100,7 @@
 // collector.executeCronTask({});
 import { Connection } from "mongoose";
 import { getConnection } from "./db/mongoClient";
-import { PriceUpdater } from "./priceUpdater";
+import { PriceUpdater } from "./priceUpdater/priceUpdater";
 import { RedisClient } from "./redis/redis";
 
 export let redisClient: RedisClient;
