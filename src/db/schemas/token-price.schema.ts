@@ -11,7 +11,16 @@ export interface IPriceData {
 }
 export const getPriceHistorySchema = (
 	collectionName: string,
-): Schema<IPriceData, mongoose.Model<IPriceData, any, any, any, any>, {}, {}, {}, {}, mongoose.DefaultSchemaOptions, IPriceData> => {
+): Schema<
+	IPriceData,
+	mongoose.Model<IPriceData, any, any, any, any>,
+	{},
+	{},
+	{},
+	{},
+	mongoose.DefaultSchemaOptions,
+	IPriceData
+> => {
 	const schema = new Schema<IPriceData>(
 		{
 			tokenAddress: {

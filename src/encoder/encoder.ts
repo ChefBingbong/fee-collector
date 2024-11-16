@@ -6,7 +6,9 @@ export type Call = { target: Address; callData: Hex };
 
 export type ABIType = typeof ABI_PARAMETER;
 export type OperationUsed = keyof typeof ABI_PARAMETER;
-export type ABIParametersType<TOperationType extends OperationUsed> = AbiParametersToPrimitiveTypes<ABIType[TOperationType]["inputs"]>;
+export type ABIParametersType<TOperationType extends OperationUsed> = AbiParametersToPrimitiveTypes<
+	ABIType[TOperationType]["inputs"]
+>;
 
 export enum OperationType {
 	ROUTER_TRANSFER_FROM = "ROUTER_TRANSFER_FROM",
@@ -17,7 +19,10 @@ export const ABI_PARAMETER = {
 	[OperationType.ROUTER_TRANSFER_FROM]: parseAbiItem(
 		"function transferRouterFunds(address[] calldata tokens, uint256[] calldata amounts, address dest)",
 	),
-	[OperationType.EXEC]: parseAbiItem(["function multicall(Call[] calldata calls)", "struct Call { address target; bytes callData; }"]),
+	[OperationType.EXEC]: parseAbiItem([
+		"function multicall(Call[] calldata calls)",
+		"struct Call { address target; bytes callData; }",
+	]),
 };
 
 export class RouterOperationBuilder {

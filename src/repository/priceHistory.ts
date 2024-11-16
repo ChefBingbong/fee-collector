@@ -25,7 +25,9 @@ export class PriceHistoryRepository extends AppLogger {
 				const result = await model.insertMany<IPriceData>(chunk);
 				this.logger.info(`[PriceInfoRepository] [add] Inserted ${result?.length} vault history`);
 			} catch (error) {
-				this.logger.error(`[PriceInfoRepository] [add] Error inserting price history for : [${assetAddress}] -> ${error}`);
+				this.logger.error(
+					`[PriceInfoRepository] [add] Error inserting price history for : [${assetAddress}] -> ${error}`,
+				);
 			}
 		}
 	};
@@ -41,7 +43,9 @@ export class PriceHistoryRepository extends AppLogger {
 			await model.create<IPriceData>(priceHistoryData);
 			this.logger.info(`[PriceInfoRepository] [addOne] Inserted price history ${assetAddress}`);
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [addOne] Error inserting price history for : [${assetAddress}] -> ${error}`);
+			this.logger.error(
+				`[PriceInfoRepository] [addOne] Error inserting price history for : [${assetAddress}] -> ${error}`,
+			);
 			throw new Error(`Error inserting vault history for ${assetAddress}`);
 		}
 	};
@@ -51,7 +55,9 @@ export class PriceHistoryRepository extends AppLogger {
 			const model = this.getModel(assetAddress);
 			return await model.findOne({ timestamp: timestamp });
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			this.logger.error(
+				`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`,
+			);
 			throw new Error(`Error getting vault history for ${assetAddress}`);
 		}
 	};
@@ -61,12 +67,18 @@ export class PriceHistoryRepository extends AppLogger {
 			const model = this.getModel(assetAddress);
 			return model.findOne().sort({ timestamp: -1 }).limit(1).exec();
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			this.logger.error(
+				`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`,
+			);
 			throw new Error(`Error getting vault history for ${assetAddress}`);
 		}
 	};
 
-	public getByRange = async (assetAddress: Address, startTimestamp: number, endTimestamp: number): Promise<IPriceData[]> => {
+	public getByRange = async (
+		assetAddress: Address,
+		startTimestamp: number,
+		endTimestamp: number,
+	): Promise<IPriceData[]> => {
 		try {
 			const model = this.getModel(assetAddress);
 
@@ -77,7 +89,9 @@ export class PriceHistoryRepository extends AppLogger {
 				},
 			});
 		} catch (error) {
-			this.logger.error(`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`);
+			this.logger.error(
+				`[PriceInfoRepository] [get] Error getting price history for : [${assetAddress}] - [${error}]`,
+			);
 			throw new Error(`Error getting vault history for ${assetAddress}`);
 		}
 	};

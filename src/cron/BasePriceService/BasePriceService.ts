@@ -1,57 +1,93 @@
-import { Address } from "viem";
+import qs from "querystring";
+import { Address, PublicClient, WalletClient } from "viem";
 import appConfig from "../../config/config";
+import { OOGA_API_URL } from "../../config/constants";
 import { AppLogger } from "../../logging/logger";
+import { OogaSwapTxResponse, OogaTokenPriceResponse, OogaWhitelistedToken, SwapParams } from "../../model/assetManager";
 import { ChainId } from "../../provider/chains";
 import { getPublicClient, getWalletClient } from "../../provider/client";
+import { formatAddress } from "../../utils/dbUtils";
+import { extractError } from "../../utils/extractError";
 import { GET } from "../../utils/network";
 import { BaseScheduler } from "../BaseScheduler";
 
-export type PriceResponse = {
-	address: Address;
-	price: number;
-};
+export type WhitelistTokenMap = Map<Address, OogaWhitelistedToken>;
 
-export interface TokenInfo {
-	address: Address;
-	name: string;
-	symbol: string;
-	decimals: number;
-	tokenURI: string;
+export interface AssetManager {
+	job: BaseScheduler;
+	schedule: string;
+	executeCronTask(): Promise<void>;
+	getWhitelistedTokens: () => Promise<WhitelistTokenMap>;
+	getOogaSwapTx: (payload: SwapParams) => Promise<OogaSwapTxResponse>;
+	getTokenPrices: () => Promise<OogaTokenPriceResponse[]>;
+	getClient: () => PublicClient;
+	getWalletClient: () => WalletClient;
 }
 
-const config = {
-	headers: { Authorization: `Bearer ${appConfig.apiKey}` },
-};
-
-export const OogaAddress = "0x55812Bd8683EC95374E42ECfbbc5fb965B3D009a";
-export abstract class BaseAssetManager extends AppLogger {
-	public readonly api: string;
+export abstract class BaseAssetManager extends AppLogger implements AssetManager {
 	public job: BaseScheduler;
 	public schedule: string;
-	protected debug: boolean;
 
-	abstract executeCronTask(): Promise<void>;
-
-	constructor({ jobId, schedule, debug }: any) {
-		super("asset-manageeer-log");
+	constructor({ jobId, schedule }: any) {
+		super(`${jobId}-log`);
 		this.schedule = schedule;
-		this.debug = debug;
-		this.api = "https://bartio.api.oogabooga.io";
 		this.job = new BaseScheduler({ jobId, schedule, process });
 	}
 
-	protected getTokenPrices = async (): Promise<PriceResponse[]> => {
-		const result = await GET<PriceResponse[], any>(`${this.api}/v1/prices?currency=USD`, config);
-		const OogaPrice = result.find((r) => r.address.toLowerCase() === OogaAddress.toLowerCase());
-		return [...result.slice(0, 5), OogaPrice];
+	abstract executeCronTask(): Promise<void>;
+
+	protected getTokenPrices = async (): Promise<OogaTokenPriceResponse[]> => {
+		try {
+			const result = await GET<OogaTokenPriceResponse[], any>(
+				`${OOGA_API_URL}/v1/prices?${this.stringifyParams({ currency: "USD" })}`,
+				{
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${appConfig.apiKey}`,
+					},
+				},
+			);
+			return result;
+		} catch (error) {
+			const errorMessage = extractError(error);
+			this.logger.error(`message: ${errorMessage}`);
+		}
 	};
 
-	protected getWhitelistedTokens = async (): Promise<Map<Address, TokenInfo>> => {
-		const result = await GET<TokenInfo[], any>(`${this.api}/v1/tokens`, config);
+	protected getWhitelistedTokens = async (): Promise<WhitelistTokenMap> => {
+		try {
+			const result = await GET<OogaWhitelistedToken[], any>(`${OOGA_API_URL}/v1/tokens`, {
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${appConfig.apiKey}`,
+				},
+			});
 
-		return result.reduce((map: Map<Address, TokenInfo>, token: TokenInfo) => {
-			return map.set(token.address.toLowerCase() as Address, token);
-		}, new Map<Address, TokenInfo>());
+			return result.reduce((map: Map<WhitelistTokenMap>, token: OogaWhitelistedToken) => {
+				return map.set(formatAddress(token.address), token);
+			}, new Map());
+		} catch (error) {
+			const errorMessage = extractError(error);
+			this.logger.error(`message: ${errorMessage}`);
+		}
+	};
+
+	protected getOogaSwapTx = async (payload: SwapParams): Promise<OogaSwapTxResponse> => {
+		try {
+			const result = await GET<OogaSwapTxResponse, any>(
+				`${OOGA_API_URL}/v1/swap?${this.stringifyParams(payload)}`,
+				{
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${appConfig.apiKey}`,
+					},
+				},
+			);
+			return result;
+		} catch (error) {
+			const errorMessage = extractError(error);
+			this.logger.error(`message: ${errorMessage}`);
+		}
 	};
 
 	protected getClient = () => {
@@ -59,8 +95,12 @@ export abstract class BaseAssetManager extends AppLogger {
 		return client;
 	};
 
-	protected getWalletClient = () => {
+	protected getWalletClient() {
 		const client = getWalletClient({ chainId: ChainId.BERA_TESTNET });
 		return client;
+	}
+
+	protected stringifyParams = (params: any) => {
+		return qs.stringify({ ...params });
 	};
 }

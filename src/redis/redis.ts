@@ -10,16 +10,19 @@ export class RedisClient {
 	}
 
 	public static async initialize(): Promise<RedisClient> {
-		const client = new Redis("redis://default:eNU1A8GubZDv5LCRIURMobJDUquyuxZw@redis-16921.c338.eu-west-2-1.ec2.redns.redis-cloud.com:16921", {
-			reconnectOnError(err) {
-				enableRedis = false;
-				if (process.env.NODE_ENV === "test") {
-					return false;
-				}
-				console.error(err, "[Redis] reconnectOnError");
-				return true;
+		const client = new Redis(
+			"redis://default:eNU1A8GubZDv5LCRIURMobJDUquyuxZw@redis-16921.c338.eu-west-2-1.ec2.redns.redis-cloud.com:16921",
+			{
+				reconnectOnError(err) {
+					enableRedis = false;
+					if (process.env.NODE_ENV === "test") {
+						return false;
+					}
+					console.error(err, "[Redis] reconnectOnError");
+					return true;
+				},
 			},
-		});
+		);
 
 		client.on("connect", () => console.info("Redis Client is connect"));
 		client.on("reconnecting", () => console.info("Redis Client is reconnecting"));

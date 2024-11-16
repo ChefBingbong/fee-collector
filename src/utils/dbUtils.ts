@@ -1,3 +1,8 @@
+import { Address } from "viem";
+
+export const formatAddress = (address: string | Address) => {
+	return address.toLowerCase() as Address;
+};
 export const equalsIgnoreCase = (a: string, b: string) => {
 	return a.localeCompare(b, undefined, { sensitivity: "accent" }) === 0;
 };

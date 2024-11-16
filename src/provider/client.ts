@@ -1,4 +1,13 @@
-import { http, Address, Chain, PublicClient, WalletClient, createPublicClient, createWalletClient, publicActions } from "viem";
+import {
+	http,
+	Address,
+	Chain,
+	PublicClient,
+	WalletClient,
+	createPublicClient,
+	createWalletClient,
+	publicActions,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { berachainTestnetbArtio } from "viem/chains";
 import appConfig from "../config/config";

@@ -9,7 +9,7 @@
 		"indentStyle": "tab",
 		"indentWidth": 4,
 		"lineEnding": "lf",
-		"lineWidth": 150,
+		"lineWidth": 120,
 		"attributePosition": "auto",
 		"ignore": ["**/src/blockchain/abi", "**/src/blockchain/type"]
 	},
@@ -72,7 +72,7 @@
 			"indentStyle": "tab",
 			"indentWidth": 4,
 			"lineEnding": "lf",
-			"lineWidth": 150
+			"lineWidth": 120
 		}
 	},
 	"overrides": [
@@ -83,7 +83,7 @@
 				"indentStyle": "tab",
 				"indentWidth": 4,
 				"lineEnding": "lf",
-				"lineWidth": 150
+				"lineWidth": 120
 			}
 		}
 	]

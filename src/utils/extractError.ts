@@ -1,7 +1,9 @@
 // biome-ignore lint/suspicious/noShadowRestrictedNames: <explanation>
-export const hasOwnProperty = <T>(object: unknown, property: keyof T): object is T => Object.prototype.hasOwnProperty.call(object, property);
+export const hasOwnProperty = <T>(object: unknown, property: keyof T): object is T =>
+	Object.prototype.hasOwnProperty.call(object, property);
 
-export const invalidError = (errorMessage: string): boolean => errorMessage === "" || errorMessage === "null" || errorMessage === "undefined";
+export const invalidError = (errorMessage: string): boolean =>
+	errorMessage === "" || errorMessage === "null" || errorMessage === "undefined";
 
 // add custom error responses for any providers as new ones get added to the aggregator
 export const extractError = (error: unknown): string => {

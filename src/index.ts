@@ -1,6 +1,6 @@
 import { Connection } from "mongoose";
+import { FeeCollector } from "./cron/feeCollector";
 import { getConnection } from "./db/mongoClient";
-import { FeeCollector } from "./feeCollector/feeCollector";
 import { FeeTransfer } from "./feeCollector/feeTransfer";
 import { PriceUpdater } from "./priceUpdater/priceUpdater";
 import { RedisClient } from "./redis/redis";
@@ -13,13 +13,13 @@ export const commonInit = async (): Promise<void> => {
 		connection = await getConnection();
 	}
 
-	const priceMonitor = new PriceUpdater({ jobId: "price-updater", schedule: "*/2 * * * *", debug: false });
-	const feeCollectionrMonitor = new FeeTransfer({ jobId: "fee-transfer", schedule: "*/20 * * * * *", debug: false });
+	const priceMonitor = new PriceUpdater({ jobId: "price-updater", schedule: "*/1 * * * *", debug: false });
+	const feeCollectionrMonitor = new FeeTransfer({ jobId: "fee-transfer", schedule: "*/2 * * * *", debug: false });
 	const feeTransferMonitor = new FeeCollector({ jobId: "fee-collector", schedule: "*/20 * * * * *", debug: false });
 
 	await priceMonitor.executeCronTask();
-	// await feeCollectionrMonitor.executeCronTask();
-	await feeTransferMonitor.executeCronTask();
+	await feeCollectionrMonitor.executeCronTask();
+	// await feeTransferMonitor.executeCronTask();
 
 	process
 		.on("SIGINT", (reason) => {
