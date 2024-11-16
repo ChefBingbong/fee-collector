@@ -10,111 +10,108 @@ import { chunks, formatAddress } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
 
 export class FeeTransfer extends BaseAssetManager {
-	private isServiceRunning: boolean;
-	private priceHistoryRepository: PriceHistoryRepository;
-	private routerOpBuilder: RouterOperationBuilder;
+  private isServiceRunning: boolean;
+  private priceHistoryRepository: PriceHistoryRepository;
+  private routerOpBuilder: RouterOperationBuilder;
 
-	constructor({ jobId, schedule, debug }: any) {
-		super({ jobId, schedule, debug });
-		this.routerOpBuilder = new RouterOperationBuilder();
-		this.priceHistoryRepository = new PriceHistoryRepository(connection);
-	}
+  constructor({ jobId, schedule, debug }: any) {
+    super({ jobId, schedule, debug });
+    this.routerOpBuilder = new RouterOperationBuilder();
+    this.priceHistoryRepository = new PriceHistoryRepository(connection);
+  }
 
-	public executeCronTask = async (): Promise<void> => {
-		if (this.isServiceRunning) {
-			throw new Error("No vault history to add");
-		}
+  public executeCronTask = async (): Promise<void> => {
+    if (this.isServiceRunning) {
+      throw new Error("No vault history to add");
+    }
 
-		this.isServiceRunning = true;
-		this.job.createSchedule(this.schedule, async () => {
-			try {
-				this.logger.info(`${this.job.jobId} task statred\n`);
+    this.isServiceRunning = true;
+    this.job.createSchedule(this.schedule, async () => {
+      try {
+        this.logger.info(`${this.job.jobId} task statred\n`);
 
-				const whitelistedTokens = await this.getWhitelistedTokens();
-				const tokenPriceData = await this.getTokenPrices();
+        const whitelistedTokens = await this.getWhitelistedTokens();
+        const tokenPriceData = await this.getTokenPrices();
 
-				for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
-					await this.tryTransferFees(tokenPriceChunk, whitelistedTokens);
-				}
-				this.logger.info(`${this.job.jobId} task finished\n`);
-			} catch (error) {
-				const errMsg = extractError(error);
-				this.logger.error(`msg: ${errMsg}`);
-			}
-		});
-	};
+        for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
+          await this.tryTransferFees(tokenPriceChunk, whitelistedTokens);
+        }
+        this.logger.info(`${this.job.jobId} task finished\n`);
+      } catch (error) {
+        const errMsg = extractError(error);
+        this.logger.error(`msg: ${errMsg}`);
+      }
+    });
+  };
 
-	private tryTransferFees = async (
-		assetPricesData: OogaTokenPriceResponse[],
-		whitelistedTokens: WhitelistTokenMap,
-	) => {
-		const client = this.getClient();
-		const walletClient = this.getWalletClient();
-		const gasPrice = await client.getGasPrice();
+  private tryTransferFees = async (assetPricesData: OogaTokenPriceResponse[], whitelistedTokens: WhitelistTokenMap) => {
+    const client = this.getClient();
+    const walletClient = this.getWalletClient();
+    const gasPrice = await client.getGasPrice();
 
-		if (gasPrice > GAS_PRICE_THRESHOLD) {
-			this.logger.info(`[TransferService] Gas price is to high ${gasPrice}`);
-			return;
-		}
+    if (gasPrice > GAS_PRICE_THRESHOLD) {
+      this.logger.info(`[TransferService] Gas price is to high ${gasPrice}`);
+      return;
+    }
 
-		const balanceResults = await client.multicall({
-			allowFailure: true,
-			// @ts-ignore
-			contracts: assetPricesData.flatMap((asset) => [
-				{
-					abi: erc20Abi,
-					address: getAddress(asset.address),
-					functionName: "balanceOf",
-					args: [Addresses.OogaRouter],
-				},
-			]),
-		});
+    const balanceResults = await client.multicall({
+      allowFailure: true,
+      // @ts-ignore
+      contracts: assetPricesData.flatMap((asset) => [
+        {
+          abi: erc20Abi,
+          address: getAddress(asset.address),
+          functionName: "balanceOf",
+          args: [Addresses.OogaRouter],
+        },
+      ]),
+    });
 
-		const filteredBalanceresults = balanceResults.filter((balanceResult) => {
-			return balanceResult.status === "success" || balanceResult.result === 0n;
-		});
+    const filteredBalanceresults = balanceResults.filter((balanceResult) => {
+      return balanceResult.status === "success" || balanceResult.result === 0n;
+    });
 
-		if (filteredBalanceresults.length === 0) {
-			this.logger.error(`[TransferService] [tryTransferFees] No success`);
-		}
+    if (filteredBalanceresults.length === 0) {
+      this.logger.error(`[TransferService] [tryTransferFees] No success`);
+    }
 
-		let currentIndex = 0;
-		const assetsForTransfer = [] as Address[];
-		const assetPices = [] as bigint[];
+    let currentIndex = 0;
+    const assetsForTransfer = [] as Address[];
+    const assetPices = [] as bigint[];
 
-		for (const assetbalance of filteredBalanceresults) {
-			const assetAddress = formatAddress(assetPricesData[currentIndex].address);
-			const assetDecimals = whitelistedTokens.get(assetAddress)?.decimals;
+    for (const assetbalance of filteredBalanceresults) {
+      const assetAddress = formatAddress(assetPricesData[currentIndex].address);
+      const assetDecimals = whitelistedTokens.get(assetAddress)?.decimals;
 
-			if (!assetDecimals) continue;
+      if (!assetDecimals) continue;
 
-			const priceData = await this.priceHistoryRepository.getLatest(assetAddress);
-			const formattedBalance = BigInt(assetbalance.result) / 10n ** BigInt(assetDecimals);
-			const assetUsdValue = formattedBalance * BigInt(Math.round(priceData.priceUsd * 2));
+      const priceData = await this.priceHistoryRepository.getLatest(assetAddress);
+      const formattedBalance = BigInt(assetbalance.result) / 10n ** BigInt(assetDecimals);
+      const assetUsdValue = formattedBalance * BigInt(Math.round(priceData.priceUsd * 2));
 
-			currentIndex = currentIndex + 1;
-			if (assetUsdValue > 100n) {
-				assetsForTransfer.push(assetAddress);
-				assetPices.push(assetbalance.result as bigint);
-			}
-		}
+      currentIndex = currentIndex + 1;
+      if (assetUsdValue > 100n) {
+        assetsForTransfer.push(assetAddress);
+        assetPices.push(assetbalance.result as bigint);
+      }
+    }
 
-		if (assetsForTransfer.length > 0 && assetPices.length > 0) {
-			this.logger.info(
-				`[TransferService] moving ${assetsForTransfer.length} assets from therouter to the FeeCollector contract`,
-			);
+    if (assetsForTransfer.length > 0 && assetPices.length > 0) {
+      this.logger.info(
+        `[TransferService] moving ${assetsForTransfer.length} assets from therouter to the FeeCollector contract`,
+      );
 
-			const callArgs = [assetsForTransfer, assetPices, Addresses.FeeCollector] as const;
-			this.routerOpBuilder.addUserOperation(OperationType.ROUTER_TRANSFER_FROM, callArgs, Addresses.OogaRouter);
+      const callArgs = [assetsForTransfer, assetPices, Addresses.FeeCollector] as const;
+      this.routerOpBuilder.addUserOperation(OperationType.ROUTER_TRANSFER_FROM, callArgs, Addresses.OogaRouter);
 
-			try {
-				const hash = await walletClient.sendTransaction({ ...(this.routerOpBuilder.userOps[0] as any) });
-				const recieipt = await client.waitForTransactionReceipt({ hash });
+      try {
+        const hash = await walletClient.sendTransaction({ ...(this.routerOpBuilder.userOps[0] as any) });
+        const recieipt = await client.waitForTransactionReceipt({ hash });
 
-				this.logger.info(`[TransferService] transaction successufl ${recieipt.transactionHash}`);
-			} catch (error) {
-				this.logger.error(`msg: ${extractError(error)}`);
-			}
-		}
-	};
+        this.logger.info(`[TransferService] transaction successufl ${recieipt.transactionHash}`);
+      } catch (error) {
+        this.logger.error(`msg: ${extractError(error)}`);
+      }
+    }
+  };
 }

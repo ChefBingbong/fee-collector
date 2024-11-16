@@ -1,3 +1,3 @@
 export enum ModelType {
-	priceHistoryInfo = "priceHistoryInfo",
+  priceHistoryInfo = "priceHistoryInfo",
 }
