@@ -1,20 +1,23 @@
 import type { AbiParametersToPrimitiveTypes } from "abitype";
-import { type Address, type Hex, Kzg, encodeAbiParameters, parseAbiItem, toFunctionSelector } from "viem";
-import { ChainId } from "../provider/chains";
+import { type Address, type Hex, encodeAbiParameters, parseAbiItem, toFunctionSelector } from "viem";
 
-export type UserOp = { to: Address; value: bigint | null; data?: Hex; chainId: number; kzg: Kzg };
+export type UserOp = { to: Address; value: bigint | null; data?: Hex };
+export type Call = { target: Address; callData: Hex };
+
 export type ABIType = typeof ABI_PARAMETER;
 export type OperationUsed = keyof typeof ABI_PARAMETER;
 export type ABIParametersType<TOperationType extends OperationUsed> = AbiParametersToPrimitiveTypes<ABIType[TOperationType]["inputs"]>;
 
 export enum OperationType {
 	ROUTER_TRANSFER_FROM = "ROUTER_TRANSFER_FROM",
+	EXEC = "EXEC",
 }
 
 export const ABI_PARAMETER = {
 	[OperationType.ROUTER_TRANSFER_FROM]: parseAbiItem(
 		"function transferRouterFunds(address[] calldata tokens, uint256[] calldata amounts, address dest)",
 	),
+	[OperationType.EXEC]: parseAbiItem(["function multicall(Call[] calldata calls)", "struct Call { address target; bytes callData; }"]),
 };
 
 export class RouterOperationBuilder {
@@ -32,7 +35,17 @@ export class RouterOperationBuilder {
 	): void {
 		const { encodedSelector, encodedInput } = encodeOperation(type, parameters);
 		const operationCalldata = encodedSelector.concat(encodedInput.substring(2)) as Hex;
-		const userOperation = { to: contract, value, chainId: ChainId.BERA_TESTNET, kzg: undefined, data: operationCalldata };
+		const userOperation = { to: contract, value, data: operationCalldata };
+		this.userOps.push(userOperation);
+	}
+
+	addMulticallOperation(calls: Call[], contract: Address, value = 0n): void {
+		const encodedSelector = toFunctionSelector(ABI_PARAMETER[OperationType.EXEC]);
+		const encodedInput = encodeAbiParameters(ABI_PARAMETER[OperationType.EXEC].inputs, [[...calls]]);
+
+		const operationCalldata = encodedSelector.concat(encodedInput.substring(2)) as Hex;
+
+		const userOperation = { to: contract, value, data: operationCalldata };
 		this.userOps.push(userOperation);
 	}
 }

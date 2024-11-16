@@ -6,5 +6,5 @@ export enum ChainId {
 	BERA_TESTNET = 80084,
 }
 export const PUBLIC_NODES = {
-	[ChainId.BERA_TESTNET]: berachainTestnetbArtio.rpcUrls.default.http,
+	[ChainId.BERA_TESTNET]: "https://bartio.rpc.berachain.com/",
 } as any;

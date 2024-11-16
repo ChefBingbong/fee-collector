@@ -19,13 +19,13 @@ const client = createWalletClient({
 
 // Bartio token addresses
 const NATIVE_TOKEN: Address = zeroAddress; // Default address for Bera native token
-const HONEY: Address = "0x0E4aaF1351de4c0264C5c7056Ef3777b41BD8e03"; //
+const HONEY: Address = "0x2577d24a26f8fa19c1058a8b0106e2c7303454a4"; //
 
 const swapParams = {
 	tokenIn: NATIVE_TOKEN, // Address of the token swapping from (BERA)
 	tokenOut: HONEY, // Address of the token swapping to (HONEY)
-	amount: parseEther("0.02"), // Amount of tokenIn to swap
-	to: account.address, // Address to send tokenOut to (optional and defaults to `from`)
+	amount: parseEther("0.05"), // Amount of tokenIn to swap
+	to: "0xfa909B88A135f357c114e69230F583A38c611f42", // Address to send tokenOut to (optional and defaults to `from`)
 	slippage: 0.01, // Range from 0 to 1 to allow for price slippage
 };
 type SwapParams = typeof swapParams;
@@ -81,22 +81,22 @@ const swap = async (swapParams: SwapParams) => {
 	publicApiUrl.searchParams.set("slippage", swapParams.slippage.toString());
 
 	const res = await fetch(publicApiUrl, { headers });
-	const tx = await res.json();
+	const { tx } = await res.json();
 
 	console.log("Submitting swap...");
 	// @ts-ignore
-	// const hash = await client.sendTransaction({
-	//   account: tx.from as Address,
-	//   to: tx.to as Address,
-	//   data: tx.data as `0x${string}`,
-	//   value: tx.value ? BigInt(tx.value) : 0n,
-	// });
-	// console.log("hash", hash);
+	const hash = await client.sendTransaction({
+		account: tx.from as Address,
+		to: tx.to as Address,
+		data: tx.data as `0x${string}`,
+		value: tx.value ? BigInt(tx.value) : 0n,
+	});
+	console.log("hash", hash);
 
-	// const rcpt = await client.waitForTransactionReceipt({
-	//   hash,
-	// });
-	console.log("Swap complete", tx);
+	const rcpt = await client.waitForTransactionReceipt({
+		hash,
+	});
+	console.log("Swap complete", rcpt);
 };
 
 async function main() {

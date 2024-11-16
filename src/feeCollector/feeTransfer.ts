@@ -1,7 +1,7 @@
 import BigNumber from "bignumber.js";
 import { Address, erc20Abi, getAddress } from "viem";
 import { connection } from "..";
-import { BaseAssetManager, OogaAddress } from "../cron/BasePriceService/BasePriceService";
+import { BaseAssetManager } from "../cron/BasePriceService/BasePriceService";
 import { BaseScheduler } from "../cron/BaseScheduler";
 import { OperationType, RouterOperationBuilder } from "../encoder/encoder";
 import { PriceHistoryRepository } from "../repository/priceHistory";
@@ -47,7 +47,10 @@ export class FeeTransfer extends BaseAssetManager {
 		const assetPices = [] as bigint[];
 		let i = 0;
 
-		if (new BigNumber(Number(gasPrice)) > this.gasPriceThreshold) return;
+		if (new BigNumber(Number(gasPrice)) > this.gasPriceThreshold) {
+			this.logger.info(`[TransferService] Gas price is to high ${gasPrice}`);
+			return;
+		}
 
 		const results = await client.multicall({
 			allowFailure: true,
@@ -57,7 +60,7 @@ export class FeeTransfer extends BaseAssetManager {
 					abi: erc20Abi,
 					address: getAddress(asset),
 					functionName: "balanceOf",
-					args: ["0xF6eDCa3C79b4A3DFA82418e278a81604083b999D"],
+					args: ["0xfa909B88A135f357c114e69230F583A38c611f42"],
 				},
 			]),
 		});
@@ -73,22 +76,27 @@ export class FeeTransfer extends BaseAssetManager {
 				const priceData = await this.priceHistoryRepository.getLatest(assets[i].toLowerCase() as Address);
 				const assetUsdValue = (BigInt(r.result) / 10n ** BigInt(assetDecimals)) * BigInt(Math.round(priceData.priceUsd * 2));
 
-				if (assetUsdValue > 100n) {
+				if (assetUsdValue > 0n) {
 					assetsForTransfer.push(assets[i].toLowerCase() as Address);
 					assetPices.push(r.result as bigint);
 				}
 			}
 			i += 1;
 		}
-		if (assetsForTransfer.length !== 0) {
+		// console.log(assetsForTransfer);
+		if (assetsForTransfer.length === 0) {
 			try {
 				const callType = OperationType.ROUTER_TRANSFER_FROM;
-				const callArgs = [assetsForTransfer, assetPices, OogaAddress] as const;
+				const callArgs = [assetsForTransfer, assetPices, "0xF6eDCa3C79b4A3DFA82418e278a81604083b999D"] as const;
 				const walletClient = this.getWalletClient();
 
-				this.routerOpBuilder.addUserOperation(callType, callArgs, OogaAddress);
-				await walletClient.sendTransaction(this.routerOpBuilder.userOps as any);
+				this.routerOpBuilder.addUserOperation(callType, callArgs, "0xfa909B88A135f357c114e69230F583A38c611f42");
+				//@ts-ignore
+				const hash = await walletClient.sendTransaction({ ...this.routerOpBuilder.userOps[0] });
+				const recieipt = await client.waitForTransactionReceipt({ hash });
+				this.logger.info(`[TransferService]transaction successufl ${recieipt.transactionHash}`);
 			} catch (error) {
+				console.log(error);
 				const errMsg = extractError(error);
 				this.logger.error(`msg: ${errMsg}`);
 			}

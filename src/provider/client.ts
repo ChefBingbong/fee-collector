@@ -1,23 +1,24 @@
-import { http, Address, Chain, PublicClient, WalletClient, createPublicClient, createWalletClient } from "viem";
+import { http, Address, Chain, PublicClient, WalletClient, createPublicClient, createWalletClient, publicActions } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { berachainTestnetbArtio } from "viem/chains";
 import appConfig from "../config/config";
 import { CHAINS, ChainId } from "./chains";
 
 export type viemAddress = `0x${string}`;
 
-// export const PROTOCOL_SIGNER = privateKeyToAccount(appConfig.protocolSigner as Address);
-export const PROTOCOL_SIGNER = appConfig.protocolSigner;
+export const PROTOCOL_SIGNER = privateKeyToAccount(appConfig.protocolSigner as Address);
 
 const createClients = <TClient extends PublicClient | WalletClient>(chains: Chain[]) => {
 	return (type: "Wallet" | "Public"): Record<ChainId, TClient> => {
 		return chains.reduce(
 			(prev, cur) => {
 				const clientConfig = {
-					chain: cur,
+					chain: berachainTestnetbArtio,
 					transport: http(),
 				};
 				const client =
 					type === "Wallet"
-						? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER as Address, cacheTime: 4000 })
+						? createWalletClient({ ...clientConfig, account: PROTOCOL_SIGNER }).extend(publicActions)
 						: createPublicClient({ ...clientConfig, cacheTime: 4000 });
 				return {
 					...prev,

@@ -4,6 +4,7 @@ import { connection } from "..";
 import { BaseAssetManager, OogaAddress } from "../cron/BasePriceService/BasePriceService";
 import { BaseScheduler } from "../cron/BaseScheduler";
 import { IPriceData } from "../db/schemas/token-price.schema";
+import { RouterOperationBuilder } from "../encoder/encoder";
 import { PriceHistoryRepository } from "../repository/priceHistory";
 import { TIMESTAMPS, getTimestamp } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
@@ -13,6 +14,7 @@ export class FeeCollector extends BaseAssetManager {
 	public schedule: string;
 	protected debug: boolean;
 	private priceHistoryRepository: PriceHistoryRepository;
+	private routerOpBuilder: RouterOperationBuilder;
 	public readonly gasPriceThreshold: BigNumber;
 
 	constructor({ jobId, schedule, debug }: any) {
@@ -20,7 +22,9 @@ export class FeeCollector extends BaseAssetManager {
 		this.schedule = schedule;
 		this.debug = debug;
 		this.gasPriceThreshold = new BigNumber(new BigNumber(7).shiftedBy(9));
+
 		this.job = new BaseScheduler({ jobId, schedule, process });
+		this.routerOpBuilder = new RouterOperationBuilder();
 		this.priceHistoryRepository = new PriceHistoryRepository(connection);
 	}
 
@@ -41,17 +45,22 @@ export class FeeCollector extends BaseAssetManager {
 
 		const whitelistedTokens = await this.getWhitelistedTokens();
 		const assets = (await this.getTokenPrices()).map((p) => p.address.toLowerCase());
-		const oogaPriceData = await this.priceHistoryRepository.getLatest(OogaAddress.toLowerCase() as Address);
 
-		if (oogaPriceData.priceChange12Hr < 0 || new BigNumber(Number(gasPrice)) > this.gasPriceThreshold) return;
+		const now = Date.now();
+		const twelveHrTimestamp = getTimestamp(TIMESTAMPS.TwelveHr, now);
+		const oogaPriceData12hr = await this.priceHistoryRepository.getByRange(OogaAddress.toLowerCase() as Address, twelveHrTimestamp, now);
+		const currentOogaTrend = this.getPriceChange(oogaPriceData12hr);
 
+		if (currentOogaTrend < 0 || new BigNumber(Number(gasPrice)) > this.gasPriceThreshold) return;
+
+		const assetsToSwap = [];
 		assets.forEach(async (asset: string) => {
-			const now = Date.now();
-			const twelveHrTimestamp = getTimestamp(TIMESTAMPS.TwelveHr, now);
 			const prices12hr = await this.priceHistoryRepository.getByRange(asset as Address, twelveHrTimestamp, now);
+			const currentTrend = this.getPriceChange(prices12hr);
 			const isAssetVolatile = this.isVolatile(prices12hr, 2, whitelistedTokens.get(asset as Address).symbol);
 
-			this.logger.info(`ooga price change 12hr ${prices12hr[0].priceChange12Hr}, gasPrice ${gasPrice}`);
+			if (currentTrend < 0 && !isAssetVolatile) assetsToSwap.push(asset);
+			this.logger.info(`ooga price change 12hr ${prices12hr[0].priceChange12Hr}, gasPrice ${gasPrice} current trend ${currentTrend}`);
 		});
 	};
 
@@ -66,19 +75,27 @@ export class FeeCollector extends BaseAssetManager {
 
 	private calculateStandardDeviation(values: number[]): number {
 		const mean = values.reduce((acc, val) => acc + val, 0) / values.length;
-		// biome-ignore lint/style/useExponentiationOperator: <explanation>
-		const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / values.length;
+		const variance = values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
 		return Math.sqrt(variance);
 	}
 
 	private isVolatile(prices: IPriceData[], threshold: number, asset: string): boolean {
 		const changes = this.calculatePercentageChanges(prices);
 		const volatility = this.calculateStandardDeviation(changes);
-		// this.logger.info(`asset: ${asset} volatility: ${volatility}`);
 		return volatility > threshold;
 	}
 
-	private calculateSlippage(expectedPrice: number, executionPrice: number): number {
-		return ((executionPrice - expectedPrice) / expectedPrice) * 100;
-	}
+	private getPriceChange = (priceData: IPriceData[]) => {
+		if (priceData.length < 2) return 0;
+		let totalChange = 0;
+
+		for (let i = 1; i < priceData.length; i++) {
+			const previousPrice = priceData[i - 1].priceUsd;
+			const currentPrice = priceData[i].priceUsd;
+			const priceChange = ((currentPrice - previousPrice) / previousPrice) * 100;
+			totalChange += priceChange;
+		}
+		const averageChange = totalChange / (priceData.length - 1);
+		return averageChange / 100;
+	};
 }
