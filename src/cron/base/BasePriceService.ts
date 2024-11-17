@@ -1,5 +1,4 @@
 import qs from "querystring";
-import { Address, PublicClient, WalletClient } from "viem";
 import appConfig from "../../config/config";
 import { OOGA_API_URL } from "../../config/constants";
 import { AppLogger } from "../../logging/logger";
@@ -9,20 +8,8 @@ import { getPublicClient, getWalletClient } from "../../provider/client";
 import { formatAddress } from "../../utils/dbUtils";
 import { extractError } from "../../utils/extractError";
 import { GET } from "../../utils/network";
-import { BaseScheduler } from "../BaseScheduler";
-
-export type WhitelistTokenMap = Map<Address, OogaWhitelistedToken>;
-
-export interface AssetManager {
-  job: BaseScheduler;
-  schedule: string;
-  executeCronTask(): Promise<void>;
-  getWhitelistedTokens: () => Promise<WhitelistTokenMap>;
-  getOogaSwapTx: (payload: SwapParams) => Promise<OogaSwapTxResponse>;
-  getTokenPrices: () => Promise<OogaTokenPriceResponse[]>;
-  getClient: () => PublicClient;
-  getWalletClient: () => WalletClient;
-}
+import { AssetManager, WhitelistTokenMap } from "../types";
+import { BaseScheduler } from "./BaseScheduler";
 
 export abstract class BaseAssetManager extends AppLogger implements AssetManager {
   public job: BaseScheduler;

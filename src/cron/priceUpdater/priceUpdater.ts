@@ -1,11 +1,12 @@
-import { connection } from "..";
-import { BaseAssetManager, WhitelistTokenMap } from "../cron/BasePriceService/BasePriceService";
-import { IPriceData } from "../db/schemas/token-price.schema";
-import { OogaTokenPriceResponse } from "../model/assetManager";
-import { PriceHistoryRepository } from "../repository/priceHistory";
-import { TIMESTAMPS, chunks, formatAddress, getTimestamp } from "../utils/dbUtils";
-import { extractError } from "../utils/extractError";
-import { JobExecutor } from "./cronLock";
+import { connection } from "../../app";
+import { IPriceData } from "../../db/schemas/token-price.schema";
+import { OogaTokenPriceResponse } from "../../model/assetManager";
+import { PriceHistoryRepository } from "../../repository/priceHistory";
+import { TIMESTAMPS, chunks, formatAddress, getTimestamp } from "../../utils/dbUtils";
+import { extractError } from "../../utils/extractError";
+import { BaseAssetManager } from "../base/BasePriceService";
+import { JobExecutor } from "../base/cronLock";
+import { WhitelistTokenMap } from "../types";
 
 export class PriceUpdater extends BaseAssetManager {
   private priceHistoryRepository: PriceHistoryRepository;
@@ -51,6 +52,7 @@ export class PriceUpdater extends BaseAssetManager {
 
     for (const priceData of assetPricesData) {
       const tokenAddress = formatAddress(priceData.address);
+
       const priceHistoryProms: Promise<IPriceData[]>[] = [
         this.priceHistoryRepository.getByRange(tokenAddress, twelveHrTimestamp, now),
         this.priceHistoryRepository.getByRange(tokenAddress, twentyFourHrTimestamp, now),

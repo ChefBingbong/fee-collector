@@ -1,42 +1,18 @@
-import { Connection } from "mongoose";
-import { Schedules } from "./config/constants";
-import { FeeCollector } from "./cron/feeCollector";
-import { FeeTransfer } from "./cron/feeTransfer";
-import { PriceUpdater } from "./cron/priceUpdater";
-import { getConnection } from "./db/mongoClient";
-import { RedisClient } from "./redis/redis";
+import { AppInitializer } from "./app";
+import { Schedulers } from "./cron/types";
 
-export let redisClient: RedisClient;
-export let connection: Connection;
+export const service = new AppInitializer(Object.values(Schedulers));
 
-export const commonInit = async (): Promise<void> => {
-  if (!connection) connection = await getConnection();
+async function main() {
+  await service.initApp();
+}
 
-  const priceMonitor = new PriceUpdater({ schedule: Schedules.PriceUpdater });
-  const feeTransferMonitor = new FeeTransfer({ schedule: Schedules.FeeTransfer });
-  const feeCollectorMonitor = new FeeCollector({ schedule: Schedules.FeeCollector });
+main();
 
-  //   await priceMonitor.executeCronTask();
-  await feeCollectorMonitor.executeCronTask();
-  await feeTransferMonitor.executeCronTask();
-
-  process
-    .on("SIGINT", (reason) => {
-      console.error(`SIGINT. ${reason}`);
-      process.exit();
-    })
-    .on("SIGTERM", (reason) => {
-      console.error(`SIGTERM. ${reason}`);
-      process.exit();
-    })
-    .on("unhandledRejection", (reason) => {
-      console.error(`Unhandled Rejection at Promise. Reason: ${reason}`);
-      process.exit(-1);
-    })
-    .on("uncaughtException", (reason) => {
-      console.error(`Uncaught Exception Rejection at Promise. Reason: ${reason}`);
-      process.exit(-2);
-    });
+const closeGracefully = (signal: NodeJS.Signals) => {
+  console.error(`*^!@4=> Received signal to terminate: ${signal}`);
+  process.exit(1);
 };
 
-commonInit();
+process.on("SIGINT", closeGracefully);
+process.on("SIGTERM", closeGracefully);

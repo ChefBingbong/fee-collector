@@ -1,15 +1,16 @@
 import { erc20Abi, getAddress } from "viem";
 import { berachainTestnetbArtio as bera } from "viem/chains";
-import { GAS_PRICE_THRESHOLD } from "../config/constants";
-import { BaseAssetManager, WhitelistTokenMap } from "../cron/BasePriceService/BasePriceService";
-import { OperationType, RouterOperationBuilder } from "../encoder/encoder";
-import { OogaTokenPriceResponse } from "../model/assetManager";
-import { Addresses } from "../provider/addresses";
-import { PROTOCOL_SIGNER } from "../provider/client";
-import { chunks, formatAddress } from "../utils/dbUtils";
-import { extractError } from "../utils/extractError";
-import { tryNTimes } from "../utils/tryNTimes";
-import { JobExecutor } from "./cronLock";
+import { GAS_PRICE_THRESHOLD } from "../../config/constants";
+import { OperationType, RouterOperationBuilder } from "../../encoder/encoder";
+import { OogaTokenPriceResponse } from "../../model/assetManager";
+import { Addresses } from "../../provider/addresses";
+import { PROTOCOL_SIGNER } from "../../provider/client";
+import { chunks, formatAddress } from "../../utils/dbUtils";
+import { extractError } from "../../utils/extractError";
+import { tryNTimes } from "../../utils/tryNTimes";
+import { BaseAssetManager } from "../base/BasePriceService";
+import { JobExecutor } from "../base/cronLock";
+import { WhitelistTokenMap } from "../types";
 
 export class FeeTransfer extends BaseAssetManager {
   private routerOpBuilder: RouterOperationBuilder;
