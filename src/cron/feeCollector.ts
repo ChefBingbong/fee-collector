@@ -37,6 +37,7 @@ export class FeeCollector extends BaseAssetManager {
         try {
           this.routerOpBuilder.clear();
           const tokenPriceData = await this.getTokenPrices();
+
           for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
             await this.checkForOptimalFeeCollection(tokenPriceChunk);
           }
@@ -122,6 +123,7 @@ export class FeeCollector extends BaseAssetManager {
     });
 
     const swapTransactionResults = await Promise.allSettled(assetsToSwapProms);
+
     const swapTransactionData: OogaSwapTxResponse[] = swapTransactionResults
       .filter((response) => response.status === "fulfilled")
       .map((response) => (response.status === "fulfilled" ? response.value : null))

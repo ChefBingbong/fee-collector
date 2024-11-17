@@ -15,7 +15,7 @@ export class FeeTransfer extends BaseAssetManager {
   private routerOpBuilder: RouterOperationBuilder;
 
   constructor({ schedule, debug = false }) {
-    super({ jobId: "fee-transfer", schedule, debug });
+    super({ jobId: "router-transfer", schedule, debug });
     this.routerOpBuilder = new RouterOperationBuilder();
   }
 
@@ -26,8 +26,8 @@ export class FeeTransfer extends BaseAssetManager {
 
     this.isServiceRunning = true;
     this.job.createSchedule(this.schedule, async () => {
-      await JobExecutor.addToQueue(`feeTransfer-${Date.now()}`, async () => {
-        this.logger.info(`[FeeTransferService] started router transfer service - timestamp [${Date.now()}]`);
+      await JobExecutor.addToQueue(`routerTransfer-${Date.now()}`, async () => {
+        this.logger.info(`[RouterTransfer] started router transfer service - timestamp [${Date.now()}]`);
         try {
           this.routerOpBuilder.clear();
           const whitelistedTokens = await this.getWhitelistedTokens();
@@ -37,10 +37,10 @@ export class FeeTransfer extends BaseAssetManager {
             await this.tryTransferFees(tokenPriceChunk, whitelistedTokens);
           }
         } catch (error) {
-          this.logger.error(`[FeeTransferService]: error ${extractError(error)}`);
+          this.logger.error(`[RouterTransfer]: error ${extractError(error)}`);
           if (error instanceof Error) this.logger.error(error.stack);
         }
-        this.logger.info(`[FeeTransferService] finished router transfer service - timestamp [${Date.now()}]\n`);
+        this.logger.info(`[RouterTransfer] finished router transfer service - timestamp [${Date.now()}]\n`);
       });
     });
   };
@@ -52,7 +52,7 @@ export class FeeTransfer extends BaseAssetManager {
 
     if (gasPrice > GAS_PRICE_THRESHOLD) {
       this.logger.info(
-        `[FeeTransferService] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${Date.now()}]`,
+        `[RouterTransfer] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${Date.now()}]`,
       );
       return;
     }
@@ -72,7 +72,7 @@ export class FeeTransfer extends BaseAssetManager {
       })
       .catch((error) => {
         this.logger.info(
-          `[FeeTransferService] [getFeeCollectBalances] error occured while fetching router balances [${Date.now()}]`,
+          `[RouterTransfer] [getFeeCollectBalances] error occured while fetching router balances [${Date.now()}]`,
         );
         throw error;
       });
@@ -94,7 +94,7 @@ export class FeeTransfer extends BaseAssetManager {
 
     if (filteredBalanceresults.length === 0) {
       this.logger.info(
-        `[FeeTransferService] [getFeeCollectBalances] No assets found with suffient balance to transfer - timestamp [${Date.now()}]`,
+        `[RouterTransfer] [getFeeCollectBalances] No assets found with suffient balance to transfer - timestamp [${Date.now()}]`,
       );
       return;
     }
@@ -112,7 +112,7 @@ export class FeeTransfer extends BaseAssetManager {
 
     // this.routerOpBuilder.addUserOperation(callType, callArgs, Addresses.OogaRouter);
     this.logger.info(
-      `[FeeTransferService] [transferFeeAssets] preparing to send ${filteredBalanceresults.length} txs - timestamp [${Date.now()}]`,
+      `[RouterTransfer] [transferFeeAssets] preparing to trsnfer ${filteredBalanceresults.length} assets to feeCollector - timestamp [${Date.now()}]`,
     );
 
     try {
@@ -133,7 +133,7 @@ export class FeeTransfer extends BaseAssetManager {
             const transactionReceipt = await client.waitForTransactionReceipt({ hash, confirmations: 1 });
 
             this.logger.info(
-              `[FeeTransferService] [transferFeeAssets] transfered ${whitelistedTokens.get(formatAddress(txConfig.to))?.symbol} to feeCollector - tx ${transactionReceipt.blockHash} ]`,
+              `[RouterTransfer] [transferFeeAssets] transfered ${whitelistedTokens.get(formatAddress(txConfig.to))?.symbol} to feeCollector - tx ${transactionReceipt.blockHash} ]`,
             );
           },
           3,
