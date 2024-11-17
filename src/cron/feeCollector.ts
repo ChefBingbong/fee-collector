@@ -7,9 +7,11 @@ import { IPriceData } from "../db/schemas/token-price.schema";
 import { OperationType, RouterOperationBuilder, encodeOperation } from "../encoder/encoder";
 import { OogaSwapTxResponse, OogaTokenPriceResponse } from "../model/assetManager";
 import { Addresses } from "../provider/addresses";
+import { PROTOCOL_SIGNER } from "../provider/client";
 import { PriceHistoryRepository } from "../repository/priceHistory";
-import { TIMESTAMPS, calculateGasMargin, chunks, formatAddress, getTimestamp } from "../utils/dbUtils";
+import { TIMESTAMPS, chunks, formatAddress, getTimestamp } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
+import { tryNTimes } from "../utils/tryNTimes";
 import { BaseAssetManager } from "./BasePriceService/BasePriceService";
 import { JobExecutor } from "./cronLock";
 
@@ -33,6 +35,7 @@ export class FeeCollector extends BaseAssetManager {
       await JobExecutor.addToQueue(`feeTransfer-${Date.now()}`, async () => {
         this.logger.info(`[FeeCollectorService] started fee collector service - timestamp [${Date.now()}]`);
         try {
+          this.routerOpBuilder.clear();
           const tokenPriceData = await this.getTokenPrices();
           for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
             await this.checkForOptimalFeeCollection(tokenPriceChunk);
@@ -111,7 +114,7 @@ export class FeeCollector extends BaseAssetManager {
           tokenIn: asset.address,
           tokenOut: Addresses.OogaToken,
           to: Addresses.OogaRouter,
-          slippage: 0.1,
+          slippage: 0.2,
           amount: asset.balance,
         });
       }
@@ -124,7 +127,6 @@ export class FeeCollector extends BaseAssetManager {
       .map((response) => (response.status === "fulfilled" ? response.value : null))
       .filter((value) => value !== null && value.status === "Success");
 
-    console.log(swapTransactionData);
     if (swapTransactionData.length === 0) {
       this.logger.info(
         `[FeeCollectorService] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${Date.now()}]`,
@@ -207,22 +209,28 @@ export class FeeCollector extends BaseAssetManager {
       const { encodedSelector, encodedInput } = encodeOperation(OperationType.EXEC, feeCollectorSwapArgs as any);
       const encodedOperation = encodedSelector.concat(encodedInput.substring(2)) as Hex;
 
-      const txConfig = { to: Addresses.FeeCollector, value: 0n, data: encodedOperation };
-      const gasEstimate = await client.estimateGas({ ...txConfig });
+      await tryNTimes(
+        async () => {
+          const txConfig = { to: Addresses.FeeCollector, value: 0n, data: encodedOperation };
+          const gasEstimate = await client.estimateGas({ ...txConfig, account: PROTOCOL_SIGNER });
 
-      const tradeMeta = await client.prepareTransactionRequest({
-        ...txConfig,
-        chain: berachainTestnetbArtio,
-        gas: calculateGasMargin(gasEstimate),
-        gasPrice,
-        kzg: undefined,
-      });
+          const tradeMeta = await client.prepareTransactionRequest({
+            ...txConfig,
+            chain: berachainTestnetbArtio,
+            gas: gasEstimate,
+            gasPrice,
+            kzg: undefined,
+          });
 
-      const hash = await walletClient.sendTransaction({ ...tradeMeta, kzg: undefined });
-      const recieipt = await client.waitForTransactionReceipt({ hash });
+          const hash = await walletClient.sendTransaction({ ...tradeMeta, kzg: undefined });
+          const recieipt = await client.waitForTransactionReceipt({ hash });
 
-      this.logger.info(
-        `[FeeCollectorService] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${recieipt.transactionHash}]`,
+          this.logger.info(
+            `[FeeCollectorService] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${recieipt.transactionHash}]`,
+          );
+        },
+        3,
+        1000,
       );
     } catch (error) {
       this.logger.error(`msg: ${extractError(error)}`);

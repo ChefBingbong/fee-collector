@@ -19,7 +19,8 @@ const client = createWalletClient({
 
 // Bartio token addresses
 const NATIVE_TOKEN: Address = zeroAddress; // Default address for Bera native token
-const HONEY: Address = "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8"; //
+const HONEY: Address = "0x2577d24a26f8fa19c1058a8b0106e2c7303454a4"; //
+// const HONEY: Address = "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8"; //
 
 const swapParams = {
   tokenIn: NATIVE_TOKEN, // Address of the token swapping from (BERA)

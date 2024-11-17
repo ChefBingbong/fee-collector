@@ -5,6 +5,6 @@ export const GAS_PRICE_THRESHOLD = BigInt(new BigNumber(new BigNumber(7).shifted
 
 export enum Schedules {
   PriceUpdater = '"*/4 * * * *"',
-  FeeTransfer = '"*/2 * * * *"',
-  FeeCollector = '"*/3 * * * *"',
+  FeeTransfer = '"*/30 * * * * *"',
+  FeeCollector = '"*/1 * * * *"',
 }

@@ -2,12 +2,13 @@ import { erc20Abi, getAddress } from "viem";
 import { berachainTestnetbArtio as bera } from "viem/chains";
 import { GAS_PRICE_THRESHOLD } from "../config/constants";
 import { BaseAssetManager, WhitelistTokenMap } from "../cron/BasePriceService/BasePriceService";
-import { OperationType, RouterOperationBuilder, UserOp } from "../encoder/encoder";
+import { OperationType, RouterOperationBuilder } from "../encoder/encoder";
 import { OogaTokenPriceResponse } from "../model/assetManager";
 import { Addresses } from "../provider/addresses";
 import { PROTOCOL_SIGNER } from "../provider/client";
 import { chunks, formatAddress } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
+import { tryNTimes } from "../utils/tryNTimes";
 import { JobExecutor } from "./cronLock";
 
 export class FeeTransfer extends BaseAssetManager {
@@ -28,6 +29,7 @@ export class FeeTransfer extends BaseAssetManager {
       await JobExecutor.addToQueue(`feeTransfer-${Date.now()}`, async () => {
         this.logger.info(`[FeeTransferService] started router transfer service - timestamp [${Date.now()}]`);
         try {
+          this.routerOpBuilder.clear();
           const whitelistedTokens = await this.getWhitelistedTokens();
           const tokenPriceData = await this.getTokenPrices();
 
@@ -120,20 +122,24 @@ export class FeeTransfer extends BaseAssetManager {
         this.routerOpBuilder.addUserOperation(callType, args as any, meta.address);
       });
 
-      await Promise.all(
-        this.routerOpBuilder.userOps.map(async (txConfig: UserOp) => {
-          const gasE = await client.estimateGas({ account: PROTOCOL_SIGNER, ...txConfig });
-          const rest = { chain: bera, gas: gasE, gasPrice, kzg: undefined };
+      for (const txConfig of this.routerOpBuilder.userOps) {
+        await tryNTimes(
+          async () => {
+            const gasE = await client.estimateGas({ account: PROTOCOL_SIGNER, ...txConfig });
+            const rest = { chain: bera, gas: gasE, gasPrice, kzg: undefined };
 
-          const meta = await client.prepareTransactionRequest({ ...txConfig, ...rest });
-          const hash = await walletClient.sendTransaction({ ...meta, kzg: undefined });
-          const transactionReceipt = await client.waitForTransactionReceipt({ hash });
+            const meta = await client.prepareTransactionRequest({ ...txConfig, ...rest });
+            const hash = await walletClient.sendTransaction({ ...meta, kzg: undefined });
+            const transactionReceipt = await client.waitForTransactionReceipt({ hash, confirmations: 1 });
 
-          this.logger.info(
-            `[FeeTransferService] [transferFeeAssets] transfered ${whitelistedTokens.get(formatAddress(txConfig.to))?.symbol} to feeCollector - tx ${transactionReceipt.blockHash} ]`,
-          );
-        }),
-      );
+            this.logger.info(
+              `[FeeTransferService] [transferFeeAssets] transfered ${whitelistedTokens.get(formatAddress(txConfig.to))?.symbol} to feeCollector - tx ${transactionReceipt.blockHash} ]`,
+            );
+          },
+          3,
+          1000,
+        );
+      }
     } catch (error) {
       console.log(error);
       this.logger.error(`msg: ${extractError(error)}`);

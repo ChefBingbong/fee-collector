@@ -43,6 +43,8 @@ export class RouterOperationBuilder {
     this.userOps = [];
   }
 
+  clear = () => (this.userOps = []);
+
   addUserOperation<TOperationType extends OperationUsed>(
     type: TOperationType,
     parameters: ABIParametersType<TOperationType>,
