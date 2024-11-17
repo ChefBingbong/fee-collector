@@ -1,25 +1,32 @@
 import { Connection } from "mongoose";
+import { Schedules } from "./config/constants";
 import { FeeCollector } from "./cron/feeCollector";
+import { FeeTransfer } from "./cron/feeTransfer";
+import { PriceUpdater } from "./cron/priceUpdater";
 import { getConnection } from "./db/mongoClient";
-import { FeeTransfer } from "./feeCollector/feeTransfer";
-import { PriceUpdater } from "./priceUpdater/priceUpdater";
 import { RedisClient } from "./redis/redis";
 
 export let redisClient: RedisClient;
 export let connection: Connection;
 
 export const commonInit = async (): Promise<void> => {
-  if (!connection) {
-    connection = await getConnection();
-  }
+  if (!connection) connection = await getConnection();
 
-  const priceMonitor = new PriceUpdater({ jobId: "price-updater", schedule: "*/1 * * * *", debug: false });
-  const feeCollectionrMonitor = new FeeTransfer({ jobId: "fee-transfer", schedule: "*/2 * * * *", debug: false });
-  const feeTransferMonitor = new FeeCollector({ jobId: "fee-collector", schedule: "*/20 * * * * *", debug: false });
+  console.info(
+    `[MainService] [serviceStartUp] starting ooga-booga router fee transfer service - timestamp [${Date.now()}]\n`,
+  );
+
+  const priceMonitor = new PriceUpdater({ schedule: Schedules.PriceUpdater });
+  const feeTransferMonitor = new FeeTransfer({ schedule: Schedules.FeeTransfer });
+  const feeCollectorMonitor = new FeeCollector({ schedule: Schedules.FeeCollector });
+
+  console.info(
+    `[MainService] [booting Workers] starting price monitor, feeTransfer monitor and feeCollection monitor workers - timestamp [${Date.now()}]\n`,
+  );
 
   await priceMonitor.executeCronTask();
-  await feeCollectionrMonitor.executeCronTask();
-  // await feeTransferMonitor.executeCronTask();
+  await feeCollectorMonitor.executeCronTask();
+  await feeTransferMonitor.executeCronTask();
 
   process
     .on("SIGINT", (reason) => {

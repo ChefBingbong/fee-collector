@@ -5,13 +5,13 @@ import { OogaTokenPriceResponse } from "../model/assetManager";
 import { PriceHistoryRepository } from "../repository/priceHistory";
 import { TIMESTAMPS, chunks, formatAddress, getTimestamp } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
+import { JobExecutor } from "./cronLock";
 
 export class PriceUpdater extends BaseAssetManager {
   private priceHistoryRepository: PriceHistoryRepository;
-  private isServiceRunning: boolean;
 
-  constructor({ jobId, schedule, debug }: any) {
-    super({ jobId, schedule, debug });
+  constructor({ schedule, debug = false }) {
+    super({ jobId: "price-updater", schedule, debug });
     this.priceHistoryRepository = new PriceHistoryRepository(connection);
   }
 
@@ -22,26 +22,23 @@ export class PriceUpdater extends BaseAssetManager {
 
     this.isServiceRunning = true;
     this.job.createSchedule(this.schedule, async () => {
-      try {
-        this.logger.info(`${this.job.jobId} task statred\n`);
+      await JobExecutor.addToQueue(`priceUpdater-${Date.now()}`, async () => {
+        this.logger.info(`[PriceUpdateService] started price updater service - timestamp [${Date.now()}]`);
 
-        const whitelistedTokens = await this.getWhitelistedTokens();
-        const tokenPriceData = await this.getTokenPrices();
+        try {
+          const whitelistedTokens = await this.getWhitelistedTokens();
+          const tokenPriceData = await this.getTokenPrices();
 
-        for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
-          await this.updatePriceHistoryData(tokenPriceChunk, whitelistedTokens);
+          for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
+            await this.updatePriceHistoryData(tokenPriceChunk, whitelistedTokens);
+          }
+        } catch (error) {
+          this.logger.error(`[PriceUpdateService]: error ${extractError(error)}`);
+          if (error instanceof Error) this.logger.error(error.stack);
         }
-        this.logger.info(`${this.job.jobId} task ended\n`);
-      } catch (error) {
-        this.logger.error(`msg: ${extractError(error)}`);
-      }
+        this.logger.info(`[PriceUpdateService] finished price updater service - timestamp [${Date.now()}]\n`);
+      });
     });
-  };
-
-  public stopCurrentTask = () => {
-    if (!this.isServiceRunning) throw new Error("No vault history to add");
-    this.job.stopCronJob();
-    this.isServiceRunning = false;
   };
 
   async updatePriceHistoryData(
@@ -52,17 +49,16 @@ export class PriceUpdater extends BaseAssetManager {
     const twelveHrTimestamp = getTimestamp(TIMESTAMPS.TwelveHr, now);
     const twentyFourHrTimestamp = getTimestamp(TIMESTAMPS.TwentyFourHr, now);
 
-    assetPricesData.forEach((priceData: OogaTokenPriceResponse) => {
+    for (const priceData of assetPricesData) {
       const tokenAddress = formatAddress(priceData.address);
-
       const priceHistoryProms: Promise<IPriceData[]>[] = [
         this.priceHistoryRepository.getByRange(tokenAddress, twelveHrTimestamp, now),
         this.priceHistoryRepository.getByRange(tokenAddress, twentyFourHrTimestamp, now),
       ];
 
-      Promise.all(priceHistoryProms)
+      await Promise.all(priceHistoryProms)
         .then(([twelveHrData, twentyFourHrData]) => {
-          const tokenSymbol = whitelistedTokens.get(tokenAddress).symbol;
+          const tokenSymbol = whitelistedTokens.get(tokenAddress)?.symbol || "NULL";
           const priceChange12Hr = this.getPriceChange(twelveHrData);
           const priceChange24Hr = this.getPriceChange(twentyFourHrData);
 
@@ -79,7 +75,10 @@ export class PriceUpdater extends BaseAssetManager {
           const errorMessage = extractError(error);
           this.logger.error(`message: ${errorMessage}, fn: updatePriceHistoryData`);
         });
-    });
+    }
+    this.logger.info(
+      `[PriceUpdateService] [updatePriceHistory] updated prices for ${assetPricesData.length} assets - timestamp [${Date.now()}]`,
+    );
   }
 
   private getPriceChange = (priceData: IPriceData[]) => {

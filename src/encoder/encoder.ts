@@ -1,7 +1,7 @@
 import type { AbiParametersToPrimitiveTypes } from "abitype";
 import { type Address, type Hex, encodeAbiParameters, parseAbiItem, toFunctionSelector } from "viem";
 
-export type UserOp = { to: Address; value: bigint | null; data?: Hex };
+export type UserOp = { to: Address; amount: bigint | null; data: Hex };
 export type Call = { target: Address; callData: Hex };
 
 export type ABIType = typeof ABI_PARAMETER;
@@ -13,15 +13,26 @@ export type ABIParametersType<TOperationType extends OperationUsed> = AbiParamet
 export enum OperationType {
   ROUTER_TRANSFER_FROM = "ROUTER_TRANSFER_FROM",
   EXEC = "EXEC",
+  SWAP = "SWAP",
+  APPROVE = "APPROVE",
+  TRANSFER_FROM = "TRANSFER_FROM",
+  TRANSFER = "TRANSFER",
 }
 
 export const ABI_PARAMETER = {
   [OperationType.ROUTER_TRANSFER_FROM]: parseAbiItem(
     "function transferRouterFunds(address[] calldata tokens, uint256[] calldata amounts, address dest)",
   ),
+  [OperationType.TRANSFER]: parseAbiItem("function transfer(address to, uint256 amount)"),
+  [OperationType.TRANSFER_FROM]: parseAbiItem("function transferFrom(address from, address to, uint256 amount)"),
+  [OperationType.APPROVE]: parseAbiItem("function approve(address spender, uint256 amount)"),
   [OperationType.EXEC]: parseAbiItem([
-    "function multicall(Call[] calldata calls)",
-    "struct Call { address target; bytes callData; }",
+    "function exec(UserOperation[] calldata userOps, bytes calldata _signature, address from)",
+    "struct UserOperation {address to; uint256 amount; bytes data; }",
+  ]),
+  [OperationType.SWAP]: parseAbiItem([
+    "function swap(swapTokenInfo memory tokenInfo, bytes calldata pathDefinition, address executor, uint32 referralCode)",
+    "struct swapTokenInfo { address inputToken; uint256 inputAmount; address outputToken; uint256 outputQuote; uint256 outputMin; address outputReceiver; }",
   ]),
 };
 
@@ -40,17 +51,7 @@ export class RouterOperationBuilder {
   ): void {
     const { encodedSelector, encodedInput } = encodeOperation(type, parameters);
     const operationCalldata = encodedSelector.concat(encodedInput.substring(2)) as Hex;
-    const userOperation = { to: contract, value, data: operationCalldata };
-    this.userOps.push(userOperation);
-  }
-
-  addMulticallOperation(calls: Call[], contract: Address, value = 0n): void {
-    const encodedSelector = toFunctionSelector(ABI_PARAMETER[OperationType.EXEC]);
-    const encodedInput = encodeAbiParameters(ABI_PARAMETER[OperationType.EXEC].inputs, [[...calls]]);
-
-    const operationCalldata = encodedSelector.concat(encodedInput.substring(2)) as Hex;
-
-    const userOperation = { to: contract, value, data: operationCalldata };
+    const userOperation = { to: contract, amount: value, data: operationCalldata };
     this.userOps.push(userOperation);
   }
 }

@@ -23,7 +23,7 @@ export class PriceHistoryRepository extends AppLogger {
     for (const chunk of chunks(priceHistoryData, 100)) {
       try {
         const result = await model.insertMany<IPriceData>(chunk);
-        this.logger.info(`[PriceInfoRepository] [add] Inserted ${result?.length} vault history`);
+        this.logger.debug(`[PriceInfoRepository] [add] Inserted ${result?.length} vault history`);
       } catch (error) {
         this.logger.error(
           `[PriceInfoRepository] [add] Error inserting price history for : [${assetAddress}] -> ${error}`,
@@ -41,7 +41,7 @@ export class PriceHistoryRepository extends AppLogger {
     try {
       const model = this.getModel(assetAddress);
       await model.create<IPriceData>(priceHistoryData);
-      this.logger.info(`[PriceInfoRepository] [addOne] Inserted price history ${assetAddress}`);
+      this.logger.debug(`[PriceInfoRepository] [addOne] Inserted price history ${assetAddress}`);
     } catch (error) {
       this.logger.error(
         `[PriceInfoRepository] [addOne] Error inserting price history for : [${assetAddress}] -> ${error}`,

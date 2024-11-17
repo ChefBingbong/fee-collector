@@ -1,23 +1,21 @@
-import { Address, erc20Abi, getAddress } from "viem";
-import { connection } from "..";
+import { erc20Abi, getAddress } from "viem";
+import { berachainTestnetbArtio as bera } from "viem/chains";
 import { GAS_PRICE_THRESHOLD } from "../config/constants";
 import { BaseAssetManager, WhitelistTokenMap } from "../cron/BasePriceService/BasePriceService";
-import { OperationType, RouterOperationBuilder } from "../encoder/encoder";
+import { OperationType, RouterOperationBuilder, UserOp } from "../encoder/encoder";
 import { OogaTokenPriceResponse } from "../model/assetManager";
 import { Addresses } from "../provider/addresses";
-import { PriceHistoryRepository } from "../repository/priceHistory";
+import { PROTOCOL_SIGNER } from "../provider/client";
 import { chunks, formatAddress } from "../utils/dbUtils";
 import { extractError } from "../utils/extractError";
+import { JobExecutor } from "./cronLock";
 
 export class FeeTransfer extends BaseAssetManager {
-  private isServiceRunning: boolean;
-  private priceHistoryRepository: PriceHistoryRepository;
   private routerOpBuilder: RouterOperationBuilder;
 
-  constructor({ jobId, schedule, debug }: any) {
-    super({ jobId, schedule, debug });
+  constructor({ schedule, debug = false }) {
+    super({ jobId: "fee-transfer", schedule, debug });
     this.routerOpBuilder = new RouterOperationBuilder();
-    this.priceHistoryRepository = new PriceHistoryRepository(connection);
   }
 
   public executeCronTask = async (): Promise<void> => {
@@ -27,20 +25,21 @@ export class FeeTransfer extends BaseAssetManager {
 
     this.isServiceRunning = true;
     this.job.createSchedule(this.schedule, async () => {
-      try {
-        this.logger.info(`${this.job.jobId} task statred\n`);
+      await JobExecutor.addToQueue(`feeTransfer-${Date.now()}`, async () => {
+        this.logger.info(`[FeeTransferService] started router transfer service - timestamp [${Date.now()}]`);
+        try {
+          const whitelistedTokens = await this.getWhitelistedTokens();
+          const tokenPriceData = await this.getTokenPrices();
 
-        const whitelistedTokens = await this.getWhitelistedTokens();
-        const tokenPriceData = await this.getTokenPrices();
-
-        for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
-          await this.tryTransferFees(tokenPriceChunk, whitelistedTokens);
+          for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
+            await this.tryTransferFees(tokenPriceChunk, whitelistedTokens);
+          }
+        } catch (error) {
+          this.logger.error(`[FeeTransferService]: error ${extractError(error)}`);
+          if (error instanceof Error) this.logger.error(error.stack);
         }
-        this.logger.info(`${this.job.jobId} task finished\n`);
-      } catch (error) {
-        const errMsg = extractError(error);
-        this.logger.error(`msg: ${errMsg}`);
-      }
+        this.logger.info(`[FeeTransferService] finished router transfer service - timestamp [${Date.now()}]\n`);
+      });
     });
   };
 
@@ -50,68 +49,94 @@ export class FeeTransfer extends BaseAssetManager {
     const gasPrice = await client.getGasPrice();
 
     if (gasPrice > GAS_PRICE_THRESHOLD) {
-      this.logger.info(`[TransferService] Gas price is to high ${gasPrice}`);
+      this.logger.info(
+        `[FeeTransferService] [getFeeCollectBalances] No assets found with suffient balance to swap - timestamp [${Date.now()}]`,
+      );
       return;
     }
 
-    const balanceResults = await client.multicall({
-      allowFailure: true,
-      // @ts-ignore
-      contracts: assetPricesData.flatMap((asset) => [
-        {
-          abi: erc20Abi,
-          address: getAddress(asset.address),
-          functionName: "balanceOf",
-          args: [Addresses.OogaRouter],
-        },
-      ]),
-    });
+    const balanceResults = await client
+      .multicall({
+        allowFailure: true,
+        // @ts-ignore
+        contracts: assetPricesData.flatMap((asset) => [
+          {
+            abi: erc20Abi,
+            address: getAddress(asset.address),
+            functionName: "balanceOf",
+            args: [PROTOCOL_SIGNER.address], // REPLACE WITH Ooga Router in prod
+          },
+        ]),
+      })
+      .catch((error) => {
+        this.logger.info(
+          `[FeeTransferService] [getFeeCollectBalances] error occured while fetching router balances [${Date.now()}]`,
+        );
+        throw error;
+      });
 
-    const filteredBalanceresults = balanceResults.filter((balanceResult) => {
-      return balanceResult.status === "success" || balanceResult.result === 0n;
-    });
+    const filteredBalanceresults = balanceResults
+      .map((result, index) => {
+        if (result.status === "success") {
+          return {
+            address: assetPricesData[index].address,
+            balance: result.result ? BigInt(result.result) : 0n,
+          };
+        }
+        return {
+          address: assetPricesData[index].address,
+          balance: 0n,
+        };
+      })
+      .filter((v) => v.balance !== 0n);
 
     if (filteredBalanceresults.length === 0) {
-      this.logger.error(`[TransferService] [tryTransferFees] No success`);
-    }
-
-    let currentIndex = 0;
-    const assetsForTransfer = [] as Address[];
-    const assetPices = [] as bigint[];
-
-    for (const assetbalance of filteredBalanceresults) {
-      const assetAddress = formatAddress(assetPricesData[currentIndex].address);
-      const assetDecimals = whitelistedTokens.get(assetAddress)?.decimals;
-
-      if (!assetDecimals) continue;
-
-      const priceData = await this.priceHistoryRepository.getLatest(assetAddress);
-      const formattedBalance = BigInt(assetbalance.result) / 10n ** BigInt(assetDecimals);
-      const assetUsdValue = formattedBalance * BigInt(Math.round(priceData.priceUsd * 2));
-
-      currentIndex = currentIndex + 1;
-      if (assetUsdValue > 100n) {
-        assetsForTransfer.push(assetAddress);
-        assetPices.push(assetbalance.result as bigint);
-      }
-    }
-
-    if (assetsForTransfer.length > 0 && assetPices.length > 0) {
       this.logger.info(
-        `[TransferService] moving ${assetsForTransfer.length} assets from therouter to the FeeCollector contract`,
+        `[FeeTransferService] [getFeeCollectBalances] No assets found with suffient balance to transfer - timestamp [${Date.now()}]`,
       );
+      return;
+    }
 
-      const callArgs = [assetsForTransfer, assetPices, Addresses.FeeCollector] as const;
-      this.routerOpBuilder.addUserOperation(OperationType.ROUTER_TRANSFER_FROM, callArgs, Addresses.OogaRouter);
+    // const assetsForTransfer = [] as Address[];
+    // const assetPices = [] as bigint[];
 
-      try {
-        const hash = await walletClient.sendTransaction({ ...(this.routerOpBuilder.userOps[0] as any) });
-        const recieipt = await client.waitForTransactionReceipt({ hash });
+    // filteredBalanceresults.forEach((assetBalance) => {
+    //   assetsForTransfer.push(formatAddress(assetBalance.address));
+    //   assetPices.push(100n);
+    // });
 
-        this.logger.info(`[TransferService] transaction successufl ${recieipt.transactionHash}`);
-      } catch (error) {
-        this.logger.error(`msg: ${extractError(error)}`);
-      }
+    // const callType = OperationType.ROUTER_TRANSFER_FROM;
+    // const callArgs = [assetsForTransfer, assetPices, Addresses.FeeCollector] as const;
+
+    // this.routerOpBuilder.addUserOperation(callType, callArgs, Addresses.OogaRouter);
+    this.logger.info(
+      `[FeeTransferService] [transferFeeAssets] preparing to send ${filteredBalanceresults.length} txs - timestamp [${Date.now()}]`,
+    );
+
+    try {
+      filteredBalanceresults.forEach((meta: { address: `0x${string}`; balance: bigint }) => {
+        const callType = OperationType.TRANSFER;
+        const args = [Addresses.FeeCollector, meta.balance];
+        this.routerOpBuilder.addUserOperation(callType, args as any, meta.address);
+      });
+
+      await Promise.all(
+        this.routerOpBuilder.userOps.map(async (txConfig: UserOp) => {
+          const gasE = await client.estimateGas({ account: PROTOCOL_SIGNER, ...txConfig });
+          const rest = { chain: bera, gas: gasE, gasPrice, kzg: undefined };
+
+          const meta = await client.prepareTransactionRequest({ ...txConfig, ...rest });
+          const hash = await walletClient.sendTransaction({ ...meta, kzg: undefined });
+          const transactionReceipt = await client.waitForTransactionReceipt({ hash });
+
+          this.logger.info(
+            `[FeeTransferService] [transferFeeAssets] transfered ${whitelistedTokens.get(formatAddress(txConfig.to))?.symbol} to feeCollector - tx ${transactionReceipt.blockHash} ]`,
+          );
+        }),
+      );
+    } catch (error) {
+      console.log(error);
+      this.logger.error(`msg: ${extractError(error)}`);
     }
   };
 }

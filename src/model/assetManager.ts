@@ -1,5 +1,5 @@
 // Address is assumed to be a string type representing Ethereum addresses.
-type Address = string;
+import { Address } from "viem";
 
 export interface Token {
   address: Address;
@@ -36,13 +36,13 @@ export interface SwapTokenInfo {
   outputReceiver: Address;
 }
 
-export interface RouterParams {
+export type RouterParams = {
   swapTokenInfo: SwapTokenInfo;
-  pathDefinition: string;
+  pathDefinition: Address;
   executor: Address;
   referralCode: number;
   value: string;
-}
+};
 
 export interface OogaSwapTxResponse {
   status: string;

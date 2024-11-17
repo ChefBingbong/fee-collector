@@ -27,6 +27,7 @@ export interface AssetManager {
 export abstract class BaseAssetManager extends AppLogger implements AssetManager {
   public job: BaseScheduler;
   public schedule: string;
+  protected isServiceRunning: boolean;
 
   constructor({ jobId, schedule }: any) {
     super(`${jobId}-log`);
@@ -36,7 +37,15 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
 
   abstract executeCronTask(): Promise<void>;
 
-  protected getTokenPrices = async (): Promise<OogaTokenPriceResponse[]> => {
+  public stopCurrentTask = (): void => {
+    if (!this.isServiceRunning) {
+      throw new Error("No vault history to add");
+    }
+    this.job.stopCronJob();
+    this.isServiceRunning = false;
+  };
+
+  public getTokenPrices = async (): Promise<OogaTokenPriceResponse[]> => {
     try {
       const result = await GET<OogaTokenPriceResponse[], any>(
         `${OOGA_API_URL}/v1/prices?${this.stringifyParams({ currency: "USD" })}`,
@@ -54,7 +63,7 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
     }
   };
 
-  protected getWhitelistedTokens = async (): Promise<WhitelistTokenMap> => {
+  public getWhitelistedTokens = async (): Promise<WhitelistTokenMap> => {
     try {
       const result = await GET<OogaWhitelistedToken[], any>(`${OOGA_API_URL}/v1/tokens`, {
         headers: {
@@ -63,7 +72,7 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
         },
       });
 
-      return result.reduce((map: Map<WhitelistTokenMap>, token: OogaWhitelistedToken) => {
+      return result.reduce((map: WhitelistTokenMap, token: OogaWhitelistedToken) => {
         return map.set(formatAddress(token.address), token);
       }, new Map());
     } catch (error) {
@@ -72,14 +81,17 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
     }
   };
 
-  protected getOogaSwapTx = async (payload: SwapParams): Promise<OogaSwapTxResponse> => {
+  public getOogaSwapTx = async (payload: SwapParams): Promise<OogaSwapTxResponse> => {
     try {
-      const result = await GET<OogaSwapTxResponse, any>(`${OOGA_API_URL}/v1/swap?${this.stringifyParams(payload)}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${appConfig.apiKey}`,
+      const result = await GET<OogaSwapTxResponse, any>(
+        `${OOGA_API_URL}/v1/swap?${this.stringifyParams({ ...payload })}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${appConfig.apiKey}`,
+          },
         },
-      });
+      );
       return result;
     } catch (error) {
       const errorMessage = extractError(error);
@@ -87,12 +99,12 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
     }
   };
 
-  protected getClient = () => {
+  public getClient = () => {
     const client = getPublicClient({ chainId: ChainId.BERA_TESTNET });
     return client;
   };
 
-  protected getWalletClient() {
+  public getWalletClient() {
     const client = getWalletClient({ chainId: ChainId.BERA_TESTNET });
     return client;
   }

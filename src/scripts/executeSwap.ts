@@ -19,13 +19,13 @@ const client = createWalletClient({
 
 // Bartio token addresses
 const NATIVE_TOKEN: Address = zeroAddress; // Default address for Bera native token
-const HONEY: Address = "0x2577d24a26f8fa19c1058a8b0106e2c7303454a4"; //
+const HONEY: Address = "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8"; //
 
 const swapParams = {
   tokenIn: NATIVE_TOKEN, // Address of the token swapping from (BERA)
   tokenOut: HONEY, // Address of the token swapping to (HONEY)
   amount: parseEther("0.05"), // Amount of tokenIn to swap
-  to: "0xfa909B88A135f357c114e69230F583A38c611f42", // Address to send tokenOut to (optional and defaults to `from`)
+  to: "0x95f4c475857C9ca1e87755f0ebC135Baca86EBF3", // Address to send tokenOut to (optional and defaults to `from`)
   slippage: 0.01, // Range from 0 to 1 to allow for price slippage
 };
 type SwapParams = typeof swapParams;
