@@ -1,5 +1,5 @@
-import { connection } from "../../app";
 import { IPriceData } from "../../db/schemas/token-price.schema";
+import { connection } from "../../index";
 import { OogaTokenPriceResponse } from "../../model/assetManager";
 import { PriceHistoryRepository } from "../../repository/priceHistory";
 import { TIMESTAMPS, chunks, formatAddress, getTimestamp } from "../../utils/dbUtils";

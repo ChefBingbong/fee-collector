@@ -10,7 +10,6 @@ import { extractError } from "../../utils/extractError";
 import { GET } from "../../utils/network";
 import { AssetManager, WhitelistTokenMap } from "../types";
 import { BaseScheduler } from "./BaseScheduler";
-
 export abstract class BaseAssetManager extends AppLogger implements AssetManager {
   public job: BaseScheduler;
   public schedule: string;
@@ -43,7 +42,7 @@ export abstract class BaseAssetManager extends AppLogger implements AssetManager
           },
         },
       );
-      return result;
+      return result.slice(0, 100);
     } catch (error) {
       const errorMessage = extractError(error);
       this.logger.error(`message: ${errorMessage}`);
