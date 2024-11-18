@@ -1,4 +1,4 @@
-# Pancake Notification Scheduler
+# Ooga Boga Test
 
 ## Disclaimer 
 
@@ -44,10 +44,12 @@ Trendlines are drawn on a chart to indicate the direction of a market's price mo
 linear regression as anothertic to check price data against.
 
 ## Combining Stategies
-Each time the worker runs it checks if the conditions of the market for an a given asset have been met.  For any point in time if the price of the asset is down whilst the price of OOGA is high, then we can add that tpkken yo our swap calldata
+Each time the worker runs it checks if the conditions of the market for an a given asset have been met.  For any point in time if the price of the asset is down whilst the price of OOGA is high, then we can add that tpkken to our swap calldata
 it also avoids times when gas Fees are high  or if the smart contract's balance is too low
 
 ## Demo 
-Or you can directly click the link:  
+click the image/video below to play 
 
-[![Watch the video](https://via.placeholder.com/500x280.png)](https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share)
+[![Watch the video](https://github.com/ChefBingbong/ooga-booga-test/blob/main/assets/images/thumbnail.jpg)](https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share)
+
+or view it here https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share
