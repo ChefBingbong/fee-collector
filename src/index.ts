@@ -1,18 +1,50 @@
-import { AppInitializer } from "./app";
-import { Schedulers } from "./cron/types";
+import { Connection } from "mongoose";
+import { Schedules } from "./config/constants";
+import { FeeCollector } from "./cron/feeCollector/feeCollector";
+import { PriceUpdater } from "./cron/priceUpdater/priceUpdater";
+import { FeeTransfer } from "./cron/routerTransfer/feeTransfer";
+import { getConnection } from "./db/mongoClient";
+import { RedisClient } from "./redis/redis";
 
-export const service = new AppInitializer(Object.values(Schedulers));
+export let redisClient: RedisClient;
+export let connection: Connection;
 
-async function main() {
-  await service.initApp();
-}
+export const commonInit = async (): Promise<void> => {
+  if (!connection) connection = await getConnection();
 
-main();
+  console.info(
+    `[MainService] [serviceStartUp] starting ooga-booga router fee transfer service - timestamp [${Date.now()}]\n`,
+  );
 
-const closeGracefully = (signal: NodeJS.Signals) => {
-  console.error(`*^!@4=> Received signal to terminate: ${signal}`);
-  process.exit(1);
+  const priceMonitor = new PriceUpdater({ schedule: Schedules.PriceUpdater });
+  const feeTransferMonitor = new FeeTransfer({ schedule: Schedules.FeeTransfer });
+  const feeCollectorMonitor = new FeeCollector({ schedule: Schedules.FeeCollector });
+
+  console.info(
+    `[MainService] [booting Workers] starting price monitor, feeTransfer monitor and feeCollection monitor workers - timestamp [${Date.now()}]\n`,
+  );
+
+  await priceMonitor.executeCronTask();
+  await feeCollectorMonitor.executeCronTask();
+  await feeTransferMonitor.executeCronTask();
+
+  process
+    .on("SIGINT", (reason) => {
+      console.error(`SIGINT. ${reason}`);
+      process.exit();
+    })
+    .on("SIGTERM", (reason) => {
+      console.error(`SIGTERM. ${reason}`);
+      process.exit();
+    })
+    .on("unhandledRejection", (reason) => {
+      console.error(`Unhandled Rejection at Promise. Reason: ${reason}`);
+      process.exit(-1);
+    })
+    .on("uncaughtException", (reason) => {
+      console.error(`Uncaught Exception Rejection at Promise. Reason: ${reason}`);
+      process.exit(-2);
+    });
 };
 
-process.on("SIGINT", closeGracefully);
-process.on("SIGTERM", closeGracefully);
+commonInit();

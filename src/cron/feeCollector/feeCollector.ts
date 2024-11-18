@@ -1,10 +1,10 @@
 import { Address, Hex, erc20Abi, getAddress, maxUint256, zeroAddress } from "viem";
 import { berachainTestnetbArtio } from "viem/chains";
-import { connection } from "../../app";
 import appConfig from "../../config/config";
 import { GAS_PRICE_THRESHOLD } from "../../config/constants";
 import { IPriceData } from "../../db/schemas/token-price.schema";
 import { OperationType, RouterOperationBuilder, encodeOperation } from "../../encoder/encoder";
+import { connection } from "../../index";
 import { OogaSwapTxResponse, OogaTokenPriceResponse } from "../../model/assetManager";
 import { Addresses } from "../../provider/addresses";
 import { PROTOCOL_SIGNER } from "../../provider/client";
