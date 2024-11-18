@@ -52,4 +52,4 @@ click the image/video below to play
 
 [![Watch the video](https://github.com/ChefBingbong/ooga-booga-test/blob/main/assets/images/thumbnail.jpg)](https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share)
 
-or view it here https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share
+or view it here [https://www.veed.io/view/4bc6ac5a-7e73-4e2b-a089-6058c61f51d2?panel=share](https://www.youtube.com/watch?v=kA0igvWBX50)
