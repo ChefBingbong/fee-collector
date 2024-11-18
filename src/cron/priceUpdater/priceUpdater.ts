@@ -9,85 +9,82 @@ import { JobExecutor } from "../base/cronLock";
 import { WhitelistTokenMap } from "../types";
 
 export class PriceUpdater extends BaseAssetManager {
-  private priceHistoryRepository: PriceHistoryRepository;
+	private priceHistoryRepository: PriceHistoryRepository;
 
-  constructor({ schedule, debug = false }) {
-    super({ jobId: "price-updater", schedule, debug });
-    this.priceHistoryRepository = new PriceHistoryRepository(connection);
-  }
+	constructor({ schedule, debug = false }) {
+		super({ jobId: "price-updater", schedule, debug });
+		this.priceHistoryRepository = new PriceHistoryRepository(connection);
+	}
 
-  public executeCronTask = async (): Promise<void> => {
-    if (this.isServiceRunning) {
-      throw new Error("No vault history to add");
-    }
+	public executeCronTask = async (): Promise<void> => {
+		if (this.isServiceRunning) {
+			throw new Error("No vault history to add");
+		}
 
-    this.isServiceRunning = true;
-    this.job.createSchedule(this.schedule, async () => {
-      await JobExecutor.addToQueue(`priceUpdater-${Date.now()}`, async () => {
-        this.logger.info(`[PriceUpdateService] started price updater service - timestamp [${Date.now()}]`);
+		this.isServiceRunning = true;
+		this.job.createSchedule(this.schedule, async () => {
+			await JobExecutor.addToQueue(`priceUpdater-${Date.now()}`, async () => {
+				this.logger.info(`[PriceUpdateService] started price updater service - timestamp [${Date.now()}]`);
 
-        try {
-          const whitelistedTokens = await this.getWhitelistedTokens();
-          const tokenPriceData = await this.getTokenPrices();
+				try {
+					const whitelistedTokens = await this.getWhitelistedTokens();
+					const tokenPriceData = await this.getTokenPrices();
 
-          for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
-            await this.updatePriceHistoryData(tokenPriceChunk, whitelistedTokens);
-          }
-        } catch (error) {
-          this.logger.error(`[PriceUpdateService]: error ${extractError(error)}`);
-          if (error instanceof Error) this.logger.error(error.stack);
-        }
-        this.logger.info(`[PriceUpdateService] finished price updater service - timestamp [${Date.now()}]\n`);
-      });
-    });
-  };
+					for (const tokenPriceChunk of chunks(tokenPriceData, 50)) {
+						await this.updatePriceHistoryData(tokenPriceChunk, whitelistedTokens);
+					}
+				} catch (error) {
+					this.logger.error(`[PriceUpdateService]: error ${extractError(error)}`);
+					if (error instanceof Error) this.logger.error(error.stack);
+				}
+				this.logger.info(`[PriceUpdateService] finished price updater service - timestamp [${Date.now()}]\n`);
+			});
+		});
+	};
 
-  async updatePriceHistoryData(
-    assetPricesData: OogaTokenPriceResponse[],
-    whitelistedTokens: WhitelistTokenMap,
-  ): Promise<void> {
-    const now = Date.now();
-    const twelveHrTimestamp = getTimestamp(TIMESTAMPS.TwelveHr, now);
-    const twentyFourHrTimestamp = getTimestamp(TIMESTAMPS.TwentyFourHr, now);
+	async updatePriceHistoryData(assetPricesData: OogaTokenPriceResponse[], whitelistedTokens: WhitelistTokenMap): Promise<void> {
+		const now = Date.now();
+		const twelveHrTimestamp = getTimestamp(TIMESTAMPS.TwelveHr, now);
+		const twentyFourHrTimestamp = getTimestamp(TIMESTAMPS.TwentyFourHr, now);
 
-    for (const priceData of assetPricesData) {
-      const tokenAddress = formatAddress(priceData.address);
+		for (const priceData of assetPricesData) {
+			const tokenAddress = formatAddress(priceData.address);
 
-      const priceHistoryProms: Promise<IPriceData[]>[] = [
-        this.priceHistoryRepository.getByRange(tokenAddress, twelveHrTimestamp, now),
-        this.priceHistoryRepository.getByRange(tokenAddress, twentyFourHrTimestamp, now),
-      ];
+			const priceHistoryProms: Promise<IPriceData[]>[] = [
+				this.priceHistoryRepository.getByRange(tokenAddress, twelveHrTimestamp, now),
+				this.priceHistoryRepository.getByRange(tokenAddress, twentyFourHrTimestamp, now),
+			];
 
-      await Promise.all(priceHistoryProms)
-        .then(([twelveHrData, twentyFourHrData]) => {
-          const tokenSymbol = whitelistedTokens.get(tokenAddress)?.symbol || "NULL";
-          const priceChange12Hr = this.getPriceChange(twelveHrData);
-          const priceChange24Hr = this.getPriceChange(twentyFourHrData);
+			await Promise.all(priceHistoryProms)
+				.then(([twelveHrData, twentyFourHrData]) => {
+					const tokenSymbol = whitelistedTokens.get(tokenAddress)?.symbol || "NULL";
+					const priceChange12Hr = this.getPriceChange(twelveHrData);
+					const priceChange24Hr = this.getPriceChange(twentyFourHrData);
 
-          this.priceHistoryRepository.addOne(tokenAddress, {
-            tokenSymbol,
-            tokenAddress,
-            priceUsd: priceData.price,
-            priceChange12Hr,
-            priceChange24Hr,
-            timestamp: now,
-          });
-        })
-        .catch((error) => {
-          const errorMessage = extractError(error);
-          this.logger.error(`message: ${errorMessage}, fn: updatePriceHistoryData`);
-        });
-    }
-    this.logger.info(
-      `[PriceUpdateService] [updatePriceHistory] updated prices for ${assetPricesData.length} assets - timestamp [${Date.now()}]`,
-    );
-  }
+					this.priceHistoryRepository.addOne(tokenAddress, {
+						tokenSymbol,
+						tokenAddress,
+						priceUsd: priceData.price,
+						priceChange12Hr,
+						priceChange24Hr,
+						timestamp: now,
+					});
+				})
+				.catch((error) => {
+					const errorMessage = extractError(error);
+					this.logger.error(`message: ${errorMessage}, fn: updatePriceHistoryData`);
+				});
+		}
+		this.logger.info(
+			`[PriceUpdateService] [updatePriceHistory] updated prices for ${assetPricesData.length} assets - timestamp [${Date.now()}]`,
+		);
+	}
 
-  private getPriceChange = (priceData: IPriceData[]) => {
-    if (priceData.length === 0) return 0;
-    const firstPrice = priceData[0].priceUsd;
-    const lastPrice = priceData[priceData.length - 1].priceUsd;
+	private getPriceChange = (priceData: IPriceData[]) => {
+		if (priceData.length === 0) return 0;
+		const firstPrice = priceData[0].priceUsd;
+		const lastPrice = priceData[priceData.length - 1].priceUsd;
 
-    return ((lastPrice - firstPrice) / firstPrice) * 100;
-  };
+		return ((lastPrice - firstPrice) / firstPrice) * 100;
+	};
 }
